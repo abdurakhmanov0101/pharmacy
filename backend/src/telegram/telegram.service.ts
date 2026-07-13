@@ -72,11 +72,25 @@ export class TelegramService implements OnModuleInit {
       await this.handleVoiceMessage(msg.chat.id, msg.audio);
     });
 
-    // 💬 Matn — avtomatik dori qidiruv
+    // 💬 Matn — avtomatik dori qidiruv yoki sotish sonini kiritish
     this.bot.on('message', async (msg: any) => {
       if (!msg.text || msg.text.startsWith('/')) return;
       const chatId = msg.chat.id;
       const state = this.userStates.get(chatId);
+
+      if (state?.state === 'selling_qty' && state.data?.medId) {
+        const qty = parseInt(msg.text.trim(), 10);
+        if (!isNaN(qty) && qty > 0) {
+          const medId = state.data.medId;
+          this.userStates.delete(chatId);
+          await this.handleSellConfirm(chatId, medId, 'CASH', qty);
+          return;
+        } else {
+          await this.bot.sendMessage(chatId, '❌ Iltimos, to\'g\'ri son kiriting (masalan: 3, 5, 12):');
+          return;
+        }
+      }
+
       if (state?.state === 'searching') {
         this.userStates.delete(chatId);
       }
@@ -342,11 +356,12 @@ export class TelegramService implements OnModuleInit {
 
     const keyboard = {
       inline_keyboard: [
+        [{ text: '🛒 POS (Tezkor Kassa & Sotish)', callback_data: 'pos_menu' }],
+        [{ text: '💊 Dorilar (+Sotish)', callback_data: 'medicines' }, { text: '📦 Ombor (+Sotish)', callback_data: 'inventory' }],
         [{ text: '📊 Dashboard', callback_data: 'dashboard' }, { text: '💵 Kassa & Foyda', callback_data: 'expenses_profit' }],
-        [{ text: '💊 Dorilar', callback_data: 'medicines' }, { text: '📦 Ombor', callback_data: 'inventory' }],
-        [{ text: '👥 Xodimlar & Oylik', callback_data: 'employees_payroll' }, { text: '💰 Sotuvlar', callback_data: 'sales' }],
+        [{ text: '💰 Sotuvlar Tarixi', callback_data: 'sales' }, { text: '👥 Xodimlar & Oylik', callback_data: 'employees_payroll' }],
         [{ text: '⚠️ Ogohlantirishlar', callback_data: 'alerts' }, { text: '📈 Hisobotlar', callback_data: 'reports' }],
-        [{ text: '🔍 Dori qidirish & Sotish', callback_data: 'search' }],
+        [{ text: '🔍 Dori Qidirish & Ovozli Sotish', callback_data: 'search' }],
       ],
     };
 
@@ -384,12 +399,25 @@ export class TelegramService implements OnModuleInit {
       else if (data === 'report_weekly') await this.sendReport(chatId, messageId, 'weekly');
       else if (data === 'report_monthly') await this.sendReport(chatId, messageId, 'monthly');
       else if (data === 'search') await this.promptSearch(chatId, messageId);
+      else if (data === 'pos_menu') await this.sendPOSMenu(chatId, messageId);
       else if (data.startsWith('sell_confirm_')) {
         const rest = data.replace('sell_confirm_', '');
-        const lastUnderscore = rest.lastIndexOf('_');
-        const medId = rest.substring(0, lastUnderscore);
-        const method = rest.substring(lastUnderscore + 1);
-        await this.handleSellConfirm(chatId, medId, method, messageId);
+        const parts = rest.split('_');
+        let medId = parts[0];
+        let qty = 1;
+        let method = 'CASH';
+        if (parts.length === 2) {
+          medId = parts[0];
+          method = parts[1];
+        } else if (parts.length >= 3) {
+          medId = parts[0];
+          qty = parseInt(parts[1], 10) || 1;
+          method = parts[2];
+        }
+        await this.handleSellConfirm(chatId, medId, method, qty, messageId);
+      }
+      else if (data.startsWith('sell_customqty_')) {
+        await this.promptCustomQty(chatId, data.replace('sell_customqty_', ''), messageId);
       }
       else if (data.startsWith('sell_')) {
         await this.handleSellPrompt(chatId, data.replace('sell_', ''), messageId);
@@ -428,9 +456,43 @@ export class TelegramService implements OnModuleInit {
     }, messageId);
   }
 
+  // ─── POS MENU ───────────────────────────────────────────
+  private async sendPOSMenu(chatId: number, messageId?: number) {
+    this.userStates.set(chatId, { state: 'searching' });
+    const topItems = await this.prisma.inventory.findMany({
+      where: { quantity: { gt: 0 } },
+      include: { medicine: true },
+      orderBy: { quantity: 'desc' },
+      take: 5,
+    });
+
+    const text =
+      `🛒 *POS — TEZKOR KASSA VA SOTUV REJIMI*\n\n` +
+      `💊 Dori nomini *yozing* yoki 🎤 *ovozli xabar* yuboring!\n` +
+      `Yoki quyidagi eng ko'p mavjud dorilardan birini tanlab bir bosishda soting:`;
+
+    const keyboardRows: any[][] = [];
+    for (const item of topItems) {
+      keyboardRows.push([
+        {
+          text: `🛒 Sotish: ${item.medicine.name} (${item.medicine.price.toLocaleString()} UZS | 📦 ${item.quantity} ta)`,
+          callback_data: `sell_${item.medicine.id}`,
+        },
+      ]);
+    }
+
+    keyboardRows.push([
+      { text: '💊 Barcha dorilar', callback_data: 'medicines' },
+      { text: '🔍 Qidirish', callback_data: 'search' },
+    ]);
+    keyboardRows.push([{ text: '🏠 Bosh menyu', callback_data: 'main_menu' }]);
+
+    await this.editOrSend(chatId, text, { inline_keyboard: keyboardRows }, messageId);
+  }
+
   // ─── MEDICINES LIST ─────────────────────────────────────
   private async sendMedicinesList(chatId: number, messageId?: number, page = 0) {
-    const pageSize = 8;
+    const pageSize = 5;
     const [medicines, total] = await Promise.all([
       this.prisma.medicine.findMany({ include: { inventory: true }, orderBy: { name: 'asc' }, skip: page * pageSize, take: pageSize }),
       this.prisma.medicine.count(),
@@ -442,22 +504,38 @@ export class TelegramService implements OnModuleInit {
       return;
     }
 
-    let text = `💊 Dorilar ro'yxati (${page + 1}/${totalPages} — jami ${total} ta)\n\n`;
+    let text = `💊 *Dorilar ro'yxati va Sotuv* (${page + 1}/${totalPages} — jami ${total} ta)\n_Sotish uchun dori nomidagi sotuv tugmasini bosing:_\n\n`;
+    const keyboardRows: any[][] = [];
+
     for (const med of medicines) {
       const qty = med.inventory.reduce((s: number, i: any) => s + i.quantity, 0);
       const e = qty === 0 ? '🔴' : qty <= 20 ? '🟡' : '🟢';
-      text += `${e} ${med.name}`;
+      text += `${e} *${med.name}*`;
       if (med.genericName) text += ` (${med.genericName})`;
       text += `\n   💵 ${med.price.toLocaleString()} UZS  |  📦 ${qty} dona\n\n`;
+
+      if (qty > 0) {
+        keyboardRows.push([
+          {
+            text: `🛒 Sotish: ${med.name} (${med.price.toLocaleString()} UZS)`,
+            callback_data: `sell_${med.id}`,
+          },
+        ]);
+      }
     }
 
     const nav: any[] = [];
     if (page > 0) nav.push({ text: '⬅️ Oldingi', callback_data: `medicines_page_${page - 1}` });
     if (page < totalPages - 1) nav.push({ text: 'Keyingi ➡️', callback_data: `medicines_page_${page + 1}` });
-    const rows: any[][] = [];
-    if (nav.length) rows.push(nav);
-    rows.push([{ text: '🔍 Qidirish', callback_data: 'search' }, { text: '🏠 Bosh menyu', callback_data: 'main_menu' }]);
-    await this.editOrSend(chatId, text, { inline_keyboard: rows }, messageId);
+    if (nav.length) keyboardRows.push(nav);
+
+    keyboardRows.push([
+      { text: '🛒 POS (Kassa)', callback_data: 'pos_menu' },
+      { text: '🔍 Qidirish', callback_data: 'search' },
+    ]);
+    keyboardRows.push([{ text: '🏠 Bosh menyu', callback_data: 'main_menu' }]);
+
+    await this.editOrSend(chatId, text, { inline_keyboard: keyboardRows }, messageId);
   }
 
   // ─── INVENTORY ──────────────────────────────────────────
@@ -477,20 +555,31 @@ export class TelegramService implements OnModuleInit {
   }
 
   private async sendAllInventory(chatId: number, messageId?: number) {
-    const items = await this.prisma.inventory.findMany({ where: { quantity: { gt: 0 } }, include: { medicine: true }, orderBy: { quantity: 'asc' }, take: 20 });
+    const items = await this.prisma.inventory.findMany({ where: { quantity: { gt: 0 } }, include: { medicine: true }, orderBy: { quantity: 'asc' }, take: 6 });
     if (!items.length) { await this.editOrSend(chatId, "Ombor bo'sh.", { inline_keyboard: [[{ text: '🏠', callback_data: 'main_menu' }]] }, messageId); return; }
-    let text = `📦 Ombor qoldiqlari (top 20)\n\n`;
-    for (const i of items) text += `${i.quantity <= 5 ? '🔴' : i.quantity <= 20 ? '🟡' : '🟢'} ${i.medicine.name} — ${i.quantity} dona\n`;
-    await this.editOrSend(chatId, text, { inline_keyboard: [[{ text: '📦 Menyu', callback_data: 'inventory' }, { text: '🏠 Bosh', callback_data: 'main_menu' }]] }, messageId);
+    let text = `📦 *Ombor qoldiqlari (Sotuv tugmasi bilan)*\n\n`;
+    const keyboardRows: any[][] = [];
+    for (const i of items) {
+      text += `${i.quantity <= 5 ? '🔴' : i.quantity <= 20 ? '🟡' : '🟢'} ${i.medicine.name} — ${i.quantity} dona (${i.medicine.price.toLocaleString()} UZS)\n`;
+      keyboardRows.push([{ text: `🛒 Sotish: ${i.medicine.name}`, callback_data: `sell_${i.medicine.id}` }]);
+    }
+    keyboardRows.push([{ text: '📦 Ombor Menyusi', callback_data: 'inventory' }, { text: '🏠 Bosh menyu', callback_data: 'main_menu' }]);
+    await this.editOrSend(chatId, text, { inline_keyboard: keyboardRows }, messageId);
   }
 
   private async sendLowStock(chatId: number, messageId?: number) {
-    const items = await this.inventoryService.getLowStock(20);
+    const items = await this.inventoryService.getLowStock(6);
     if (!items.length) { await this.editOrSend(chatId, '✅ Barcha dorilar yetarli!', { inline_keyboard: [[{ text: '🏠', callback_data: 'main_menu' }]] }, messageId); return; }
-    let text = `🔴 Kam qolgan dorilar (≤20 dona)\n\n`;
-    for (const i of items.slice(0, 15)) text += `${i.quantity === 0 ? '❌' : i.quantity <= 5 ? '🔴' : '🟡'} ${i.medicine.name} — ${i.quantity} dona\n`;
-    if (items.length > 15) text += `\n...va yana ${items.length - 15} ta`;
-    await this.editOrSend(chatId, text, { inline_keyboard: [[{ text: '📦 Ombor', callback_data: 'inventory' }, { text: '🏠', callback_data: 'main_menu' }]] }, messageId);
+    let text = `🔴 *Kam qolgan dorilar (≤20 dona) va Sotish*\n\n`;
+    const keyboardRows: any[][] = [];
+    for (const i of items) {
+      text += `${i.quantity === 0 ? '❌' : i.quantity <= 5 ? '🔴' : '🟡'} ${i.medicine.name} — ${i.quantity} dona (${i.medicine.price.toLocaleString()} UZS)\n`;
+      if (i.quantity > 0) {
+        keyboardRows.push([{ text: `🛒 Sotish: ${i.medicine.name}`, callback_data: `sell_${i.medicine.id}` }]);
+      }
+    }
+    keyboardRows.push([{ text: '📦 Ombor Menyusi', callback_data: 'inventory' }, { text: '🏠 Bosh menyu', callback_data: 'main_menu' }]);
+    await this.editOrSend(chatId, text, { inline_keyboard: keyboardRows }, messageId);
   }
 
   private async sendExpiring(chatId: number, messageId?: number, days = 30) {
@@ -659,28 +748,52 @@ export class TelegramService implements OnModuleInit {
     }
 
     const text =
-      `🛒 *SOTUV AMALGA OSHIRISH*\n\n` +
+      `🛒 *SOTUV AMALGA OSHIRISH (KASSA)*\n\n` +
       `💊 *Mahsulot:* ${medicine.name}\n` +
-      `💵 *Narxi:* ${medicine.price.toLocaleString()} UZS\n` +
-      `📦 *Ombor qoldig'i:* ${totalQty} dona\n\n` +
-      `To'lov turini tanlang:`;
+      `💵 *1 dona narxi:* ${medicine.price.toLocaleString()} UZS\n` +
+      `📦 *Ombordagi qoldiq:* ${totalQty} dona\n\n` +
+      `Sotiladigan miqdor va to'lov turini tanlang:`;
 
     await this.editOrSend(chatId, text, {
       inline_keyboard: [
         [
-          { text: '💵 Naqd', callback_data: `sell_confirm_${medId}_Naqd` },
-          { text: '💳 Click', callback_data: `sell_confirm_${medId}_Click` },
+          { text: '💵 1 dona (Naqd)', callback_data: `sell_confirm_${medId}_1_Naqd` },
+          { text: '💳 1 dona (Karta)', callback_data: `sell_confirm_${medId}_1_Karta` },
         ],
         [
-          { text: '📱 Payme', callback_data: `sell_confirm_${medId}_Payme` },
-          { text: '💳 Karta', callback_data: `sell_confirm_${medId}_Karta` },
+          { text: '💵 2 dona (Naqd)', callback_data: `sell_confirm_${medId}_2_Naqd` },
+          { text: '💳 2 dona (Karta)', callback_data: `sell_confirm_${medId}_2_Karta` },
+        ],
+        [
+          { text: '💵 3 dona (Naqd)', callback_data: `sell_confirm_${medId}_3_Naqd` },
+          { text: '💵 5 dona (Naqd)', callback_data: `sell_confirm_${medId}_5_Naqd` },
+        ],
+        [
+          { text: '💵 10 dona (Naqd)', callback_data: `sell_confirm_${medId}_10_Naqd` },
+          { text: '✍️ Boshqa son yozish', callback_data: `sell_customqty_${medId}` },
         ],
         [{ text: '❌ Bekor qilish', callback_data: 'main_menu' }],
       ],
     }, messageId);
   }
 
-  private async handleSellConfirm(chatId: number, medId: string, paymentMethod: string, messageId?: number) {
+  private async promptCustomQty(chatId: number, medId: string, messageId?: number) {
+    const medicine = await this.prisma.medicine.findUnique({ where: { id: medId } });
+    if (!medicine) return;
+    this.userStates.set(chatId, { state: 'selling_qty', data: { medId } });
+    const text = `✍️ *"${medicine.name}"* uchun sotiladigan sonni yozib yuboring (masalan: 4, 15, 20):`;
+    await this.editOrSend(chatId, text, {
+      inline_keyboard: [[{ text: '❌ Bekor qilish', callback_data: `sell_${medId}` }]],
+    }, messageId);
+  }
+
+  private async handleSellConfirm(
+    chatId: number,
+    medId: string,
+    paymentMethod: string,
+    qty: number = 1,
+    messageId?: number,
+  ) {
     try {
       const medicine = await this.prisma.medicine.findUnique({
         where: { id: medId },
@@ -693,8 +806,19 @@ export class TelegramService implements OnModuleInit {
       }
 
       const availableInv = medicine.inventory.find((i: any) => i.quantity > 0);
-      if (!availableInv) {
-        await this.editOrSend(chatId, "❌ Ushbu dori omborda tugab qoldi.", { inline_keyboard: [[{ text: '🏠 Bosh menyu', callback_data: 'main_menu' }]] }, messageId);
+      if (!availableInv || availableInv.quantity < qty) {
+        const currentQty = availableInv?.quantity || 0;
+        await this.editOrSend(
+          chatId,
+          `❌ Omborda yetarli qoldiq yo'q. Mavjud: ${currentQty} dona. Siz so'radingiz: ${qty} dona.`,
+          {
+            inline_keyboard: [
+              [{ text: '🛒 Mavjud boricha sotish', callback_data: currentQty > 0 ? `sell_confirm_${medId}_${currentQty}_${paymentMethod}` : 'main_menu' }],
+              [{ text: '🏠 Bosh menyu', callback_data: 'main_menu' }],
+            ],
+          },
+          messageId,
+        );
         return;
       }
 
@@ -705,17 +829,23 @@ export class TelegramService implements OnModuleInit {
         return;
       }
 
+      const totalAmount = medicine.price * qty;
+      const normalizedMethod =
+        paymentMethod === 'Karta' || paymentMethod === 'Click' || paymentMethod === 'Payme' || paymentMethod === 'CARD'
+          ? 'CARD'
+          : 'CASH';
+
       // Create Sale + SaleItem in database
       const sale = await this.prisma.sale.create({
         data: {
           branchId: branch.id,
           userId: user.id,
-          totalAmount: medicine.price,
-          paymentMethod: paymentMethod,
+          totalAmount: totalAmount,
+          paymentMethod: normalizedMethod,
           items: {
             create: {
               medicineId: medicine.id,
-              quantity: 1,
+              quantity: qty,
               unitPrice: medicine.price,
             },
           },
@@ -723,24 +853,36 @@ export class TelegramService implements OnModuleInit {
       });
 
       // Deduct inventory
+      const newQty = Math.max(0, availableInv.quantity - qty);
       await this.prisma.inventory.update({
         where: { id: availableInv.id },
-        data: { quantity: Math.max(0, availableInv.quantity - 1) },
+        data: { quantity: newQty },
+      });
+
+      // Create inventory transaction log for auditing
+      await this.prisma.inventoryTransaction.create({
+        data: {
+          inventoryId: availableInv.id,
+          type: 'OUT',
+          quantity: qty,
+          notes: `Telegram Bot orqali sotildi (#BOT-${sale.id.slice(0, 8).toUpperCase()})`,
+        },
       });
 
       const receiptText =
-        `✅ *SOTUV MUVAFFAQIYATLI AMALGA OSHIRILDI!*\n\n` +
+        `✅ *SOTUV MUVAFFAQIYATLI AMALGA OSHIRILDI (BAZADA YANGILANDI)!*\n\n` +
         `🧾 *Chek:* #BOT-${sale.id.slice(0, 8).toUpperCase()}\n` +
-        `💊 *Mahsulot:* ${medicine.name} (1 dona)\n` +
-        `💵 *Jami summa:* ${medicine.price.toLocaleString()} UZS\n` +
+        `💊 *Mahsulot:* ${medicine.name}\n` +
+        `📦 *Sotildi:* ${qty} dona\n` +
+        `💵 *Jami summa:* ${totalAmount.toLocaleString()} UZS\n` +
         `💳 *To'lov turi:* ${paymentMethod}\n` +
         `📅 *Sana:* ${new Date().toLocaleTimeString('uz-UZ')}\n\n` +
-        `📦 *Omborda yangi qoldiq:* ${availableInv.quantity - 1} dona`;
+        `📦 *Omborda yangi qoldiq:* ${newQty} dona`;
 
       await this.editOrSend(chatId, receiptText, {
         inline_keyboard: [
-          [{ text: '🔍 Boshqa sotuv qilish', callback_data: 'search' }],
-          [{ text: '🏠 Bosh menyu', callback_data: 'main_menu' }],
+          [{ text: '🛒 POS Menyuga qaytish', callback_data: 'pos_menu' }],
+          [{ text: '💊 Dorilar ro\'yxati', callback_data: 'medicines' }, { text: '🏠 Bosh menyu', callback_data: 'main_menu' }],
         ],
       }, messageId);
 
