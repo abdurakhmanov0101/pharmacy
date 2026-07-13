@@ -976,6 +976,15 @@ export class TelegramService implements OnModuleInit {
         },
       });
 
+      // Create Payment record for full reporting and accounting sync
+      await this.prisma.payment.create({
+        data: {
+          saleId: sale.id,
+          amount: totalAmount,
+          method: normalizedMethod,
+        },
+      }).catch(() => {});
+
       // Deduct inventory
       const newQty = Math.max(0, availableInv.quantity - qty);
       await this.prisma.inventory.update({
