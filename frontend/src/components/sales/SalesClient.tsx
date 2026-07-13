@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Search, Eye, X, Receipt } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, Eye, X, Receipt, RefreshCw } from 'lucide-react';
 import { useLanguage } from '@/i18n/LanguageContext';
 
 export default function SalesClient({ initialSales }: { initialSales: any[] }) {
@@ -9,10 +9,34 @@ export default function SalesClient({ initialSales }: { initialSales: any[] }) {
   const [sales, setSales] = useState(initialSales);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSale, setSelectedSale] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
+  const fetchSales = async () => {
+    try {
+      const res = await fetch('http://localhost:3001/api/sales');
+      if (res.ok) {
+        const data = await res.json();
+        setSales(data);
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    fetchSales();
+    const interval = setInterval(fetchSales, 4000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleManualRefresh = async () => {
+    setLoading(true);
+    await fetchSales();
+    setLoading(false);
+  };
 
   const filteredSales = sales.filter(sale => 
     sale.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    sale.paymentMethod.toLowerCase().includes(searchQuery.toLowerCase())
+    sale.paymentMethod.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    sale.items?.some((i: any) => i.medicine?.name?.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   return (
@@ -22,15 +46,25 @@ export default function SalesClient({ initialSales }: { initialSales: any[] }) {
           <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">{t('salesHistory.title')}</h2>
           <p className="text-xs sm:text-sm text-muted-foreground mt-1">{t('salesHistory.subtitle')}</p>
         </div>
-        <div className="relative w-full sm:w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input 
-            type="text" 
-            placeholder={t('header.search')}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all shadow-sm"
-          />
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="relative flex-1 sm:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input 
+              type="text" 
+              placeholder={t('header.search')}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all shadow-sm"
+            />
+          </div>
+          <button
+            onClick={handleManualRefresh}
+            disabled={loading}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg text-sm font-medium transition-colors shadow-sm disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Yangilash
+          </button>
         </div>
       </div>
 
@@ -63,7 +97,12 @@ export default function SalesClient({ initialSales }: { initialSales: any[] }) {
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    {sale.items.reduce((sum: number, item: any) => sum + item.quantity, 0)}
+                    <div className="font-medium text-xs text-foreground">
+                      {sale.items?.map((item: any) => item.medicine?.name).filter(Boolean).join(', ') || 'Dorilar'}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      Jami: {sale.items?.reduce((sum: number, item: any) => sum + item.quantity, 0)} dona
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-right">
                     <button 

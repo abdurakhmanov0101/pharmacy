@@ -23,12 +23,17 @@ export default function DashboardClient({ stats: initialStats, error }: { stats:
 
   useEffect(() => {
     setMounted(true);
-    fetch("http://localhost:3001/api/dashboard")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data && !data.error) setStats(data);
-      })
-      .catch(() => {});
+    const fetchDashboard = () => {
+      fetch("http://localhost:3001/api/dashboard")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && !data.error) setStats(data);
+        })
+        .catch(() => {});
+    };
+    fetchDashboard();
+    const interval = setInterval(fetchDashboard, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const chartData = stats?.chartData || [];
