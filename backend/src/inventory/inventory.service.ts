@@ -38,6 +38,7 @@ export class InventoryService {
         quantity: { lte: threshold },
         ...(branchId ? { branchId } : {})
       },
+      take: 200,
       include: {
         medicine: { include: { category: true } },
         branch: true,
@@ -59,6 +60,7 @@ export class InventoryService {
         },
         ...(branchId ? { branchId } : {})
       },
+      take: 200,
       include: {
         medicine: { include: { category: true } },
         branch: true,
@@ -75,6 +77,7 @@ export class InventoryService {
         quantity: { gt: 0 },
         ...(branchId ? { branchId } : {})
       },
+      take: 200,
       include: {
         medicine: true,
         branch: true,

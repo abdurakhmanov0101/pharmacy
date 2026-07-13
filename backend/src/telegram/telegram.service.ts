@@ -286,13 +286,44 @@ export class TelegramService implements OnModuleInit {
   //  🔍  AVTOMATIK MATN QIDIRUVI
   // ═══════════════════════════════════════════════════════
   private async handleAutoSearch(chatId: number, text: string) {
-    if (text.length < 2) return;
+    const cleanText = (text || '').trim();
+    if (cleanText.length < 2) return;
 
-    const medicines = await this.prisma.medicine.findMany({
+    const lower = cleanText.toLowerCase();
+
+    // 1. Keyword check — agar foydalanuvchi buyruq yoki bo'lim nomini yozsa, ro'yxatni ochamiz
+    if (['dorilar', 'dori', "ro'yxat", "ro'yhat", 'spiska', 'barcha dorilar', 'dorilar ro\'yxati', 'dorilar ro\'yhati'].includes(lower)) {
+      await this.sendMedicinesList(chatId);
+      return;
+    }
+    if (['ombor', 'qoldiq', 'sklad', 'kam qolgan'].includes(lower)) {
+      await this.sendInventoryMenu(chatId);
+      return;
+    }
+    if (['kassa', 'pos', 'sotish', 'sotuv'].includes(lower)) {
+      await this.sendPOSMenu(chatId);
+      return;
+    }
+    if (['dashboard', 'asosiy', 'statistika'].includes(lower)) {
+      await this.sendDashboard(chatId);
+      return;
+    }
+    if (['foyda', 'chiqim', 'moliya'].includes(lower)) {
+      await this.sendExpensesProfit(chatId);
+      return;
+    }
+    if (['menyu', 'menu', 'bosh menyu', 'start'].includes(lower)) {
+      await this.sendMainMenu(chatId, 'Siz');
+      return;
+    }
+
+    // 2. Dori qidiruv (SQL OR + Case-Insensitive JS fallback)
+    let medicines = await this.prisma.medicine.findMany({
       where: {
         OR: [
-          { name: { contains: text } },
-          { genericName: { contains: text } },
+          { name: { contains: cleanText } },
+          { genericName: { contains: cleanText } },
+          { barcode: { contains: cleanText } },
         ],
       },
       include: { inventory: true },
@@ -300,13 +331,26 @@ export class TelegramService implements OnModuleInit {
     });
 
     if (!medicines.length) {
+      const allMedicines = await this.prisma.medicine.findMany({
+        include: { inventory: true },
+        take: 300,
+      });
+      medicines = allMedicines.filter((m: any) =>
+        m.name?.toLowerCase().includes(lower) ||
+        m.genericName?.toLowerCase().includes(lower) ||
+        m.barcode?.includes(lower)
+      ).slice(0, 10);
+    }
+
+    if (!medicines.length) {
       await this.bot.sendMessage(
         chatId,
-        `💊 "${text}" nomi bilan dori topilmadi.\n\nBoshqa nom bilan yozing yoki menyu ko'ring.`,
+        `💊 "${cleanText}" nomi bilan dori topilmadi.\n\nBoshqa nom bilan yozing yoki barcha dorilar ro'yxatini ko'ring:`,
         {
           reply_markup: {
             inline_keyboard: [
-              [{ text: '💊 Barcha dorilar', callback_data: 'medicines' }],
+              [{ text: '💊 Barcha dorilar ro\'yxati (+Sotish)', callback_data: 'medicines' }],
+              [{ text: '🛒 POS (Tezkor Kassa)', callback_data: 'pos_menu' }],
               [{ text: '🏠 Bosh menyu', callback_data: 'main_menu' }],
             ],
           },
@@ -315,7 +359,7 @@ export class TelegramService implements OnModuleInit {
       return;
     }
 
-    let resultText = `🔍 "${text}" bo'yicha ${medicines.length} ta natija:\n\n`;
+    let resultText = `🔍 "${cleanText}" bo'yicha ${medicines.length} ta natija:\n\n`;
     const keyboardRows: any[][] = [];
 
     for (const med of medicines) {
@@ -678,16 +722,32 @@ export class TelegramService implements OnModuleInit {
   }
 
   async handleSearch(chatId: number, query: string) {
-    const medicines = await this.prisma.medicine.findMany({
-      where: { OR: [{ name: { contains: query } }, { genericName: { contains: query } }] },
+    const cleanText = (query || '').trim();
+    const lower = cleanText.toLowerCase();
+
+    let medicines = await this.prisma.medicine.findMany({
+      where: { OR: [{ name: { contains: cleanText } }, { genericName: { contains: cleanText } }, { barcode: { contains: cleanText } }] },
       include: { inventory: true },
       take: 10,
     });
 
     if (!medicines.length) {
+      const allMedicines = await this.prisma.medicine.findMany({
+        include: { inventory: true },
+        take: 300,
+      });
+      medicines = allMedicines.filter((m: any) =>
+        m.name?.toLowerCase().includes(lower) ||
+        m.genericName?.toLowerCase().includes(lower) ||
+        m.barcode?.includes(lower)
+      ).slice(0, 10);
+    }
+
+    if (!medicines.length) {
       await this.bot.sendMessage(chatId,
-        `💊 "${query}" nomi bilan dori topilmadi.\n\nBoshqa nom yozing.`,
+        `💊 "${cleanText}" nomi bilan dori topilmadi.\n\nBoshqa nom yozing yoki barcha dorilar ro'yxatini ko'ring:`,
         { reply_markup: { inline_keyboard: [
+          [{ text: '💊 Barcha dorilar ro\'yxati (+Sotish)', callback_data: 'medicines' }],
           [{ text: '🔍 Qayta qidirish', callback_data: 'search' }],
           [{ text: '🏠 Bosh menyu', callback_data: 'main_menu' }],
         ]}},
