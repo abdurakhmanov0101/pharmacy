@@ -5,7 +5,7 @@ export default async function MedicinesPage() {
   let error = null;
 
   try {
-    const res = await fetch('http://localhost:3001/api/medicines', { cache: 'no-store' });
+    const res = await fetch('http://localhost:3001/api/medicines?limit=300', { cache: 'no-store' });
     if (!res.ok) throw new Error('Failed to fetch data');
     medicines = await res.json();
   } catch (err) {

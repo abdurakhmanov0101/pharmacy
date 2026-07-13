@@ -5,8 +5,20 @@ import { PrismaService } from '../prisma.service';
 export class MedicinesService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll() {
+  async findAll(search?: string, limit: number = 300) {
+    const where: any = search
+      ? {
+          OR: [
+            { name: { contains: search } },
+            { genericName: { contains: search } },
+            { barcode: { contains: search } },
+          ],
+        }
+      : undefined;
+
     return this.prisma.medicine.findMany({
+      where,
+      take: Number(limit) || 300,
       include: {
         category: true,
         manufacturer: true,

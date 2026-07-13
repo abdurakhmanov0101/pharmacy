@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query } from '@nestjs/common';
 import { MedicinesService } from './medicines.service';
 import { CreateMedicineDto, UpdateMedicineDto } from './dto/medicine.dto';
 
@@ -7,8 +7,8 @@ export class MedicinesController {
   constructor(private readonly medicinesService: MedicinesService) {}
 
   @Get()
-  findAll() {
-    return this.medicinesService.findAll();
+  findAll(@Query('search') search?: string, @Query('limit') limit?: number) {
+    return this.medicinesService.findAll(search, limit);
   }
 
   @Post()

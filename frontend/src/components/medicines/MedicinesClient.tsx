@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Search, Plus, Edit, Trash2, X, Upload, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useLanguage } from '@/i18n/LanguageContext';
@@ -74,9 +74,12 @@ export default function MedicinesClient({ initialMedicines }: { initialMedicines
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const fetchMedicines = async () => {
+  const fetchMedicines = async (query = '') => {
     try {
-      const res = await fetch('http://localhost:3001/api/medicines');
+      const url = query
+        ? `http://localhost:3001/api/medicines?search=${encodeURIComponent(query)}&limit=100`
+        : `http://localhost:3001/api/medicines?limit=300`;
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         setMedicines(data);
@@ -85,6 +88,17 @@ export default function MedicinesClient({ initialMedicines }: { initialMedicines
       console.error('Failed to fetch medicines');
     }
   };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery.trim().length >= 2) {
+        fetchMedicines(searchQuery.trim());
+      } else if (searchQuery.trim().length === 0) {
+        fetchMedicines();
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

@@ -105,8 +105,9 @@ export class SalesService {
     });
   }
 
-  async findAll() {
+  async findAll(limit: number = 100) {
     return this.prisma.sale.findMany({
+      take: Number(limit) || 100,
       include: {
         items: {
           include: {

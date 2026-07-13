@@ -40,9 +40,12 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
   };
 
   // Fetch updated medicines to show real-time remaining inventory
-  const fetchUpdatedMedicines = async () => {
+  const fetchUpdatedMedicines = async (query = '') => {
     try {
-      const res = await fetch('http://localhost:3001/api/medicines');
+      const url = query
+        ? `http://localhost:3001/api/medicines?search=${encodeURIComponent(query)}&limit=100`
+        : `http://localhost:3001/api/medicines?limit=300`;
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         setMedicines(data);
@@ -53,6 +56,17 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
   useEffect(() => {
     fetchUpdatedMedicines();
   }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery.trim().length >= 2) {
+        fetchUpdatedMedicines(searchQuery.trim());
+      } else if (searchQuery.trim().length === 0) {
+        fetchUpdatedMedicines();
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // Global Barcode Scanner Listener (Hardware scanner simulates rapid keyboard input ending in Enter)
   useEffect(() => {

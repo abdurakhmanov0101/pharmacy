@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get } from '@nestjs/common';
+import { Controller, Post, Body, Get, Query } from '@nestjs/common';
 import { SalesService } from './sales.service';
 
 @Controller('api/sales')
@@ -11,7 +11,7 @@ export class SalesController {
   }
 
   @Get()
-  async findAll() {
-    return this.salesService.findAll();
+  async findAll(@Query('limit') limit?: number) {
+    return this.salesService.findAll(limit);
   }
 }

@@ -5,9 +5,23 @@ import { PrismaService } from '../prisma.service';
 export class InventoryService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(branchId?: string) {
+  async findAll(branchId?: string, limit: number = 300, search?: string) {
     return this.prisma.inventory.findMany({
-      where: branchId ? { branchId } : undefined,
+      where: {
+        ...(branchId ? { branchId } : {}),
+        ...(search
+          ? {
+              medicine: {
+                OR: [
+                  { name: { contains: search } },
+                  { genericName: { contains: search } },
+                  { barcode: { contains: search } },
+                ],
+              },
+            }
+          : {}),
+      },
+      take: Number(limit) || 300,
       include: {
         medicine: {
           include: { category: true, manufacturer: true },
@@ -103,17 +117,22 @@ export class InventoryService {
   }
 
   async getTotalValue(branchId?: string) {
-    const inventories = await this.prisma.inventory.findMany({
-      where: { 
-        quantity: { gt: 0 },
-        ...(branchId ? { branchId } : {})
-      },
-      include: { medicine: true },
-    });
-
-    return inventories.reduce((sum, inv) => {
-      return sum + inv.quantity * (inv.medicine.price || 0);
-    }, 0);
+    if (branchId) {
+      const result: any = await this.prisma.$queryRaw`
+        SELECT COALESCE(SUM(i.quantity * m.price), 0) as total
+        FROM Inventory i
+        JOIN Medicine m ON i.medicineId = m.id
+        WHERE i.quantity > 0 AND i.branchId = ${branchId}
+      `;
+      return Number(result?.[0]?.total || 0);
+    }
+    const result: any = await this.prisma.$queryRaw`
+      SELECT COALESCE(SUM(i.quantity * m.price), 0) as total
+      FROM Inventory i
+      JOIN Medicine m ON i.medicineId = m.id
+      WHERE i.quantity > 0
+    `;
+    return Number(result?.[0]?.total || 0);
   }
 
   async receiveStock(data: {

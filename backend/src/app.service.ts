@@ -37,14 +37,12 @@ export class AppService {
         where: { quantity: { lte: 20 } },
       }),
       // Real inventory value = sum(quantity * price)
-      this.prisma.inventory
-        .findMany({
-          where: { quantity: { gt: 0 } },
-          include: { medicine: { select: { price: true } } },
-        })
-        .then((items) =>
-          items.reduce((sum, i) => sum + i.quantity * (i.medicine?.price || 0), 0),
-        ),
+      this.prisma.$queryRaw<[{ total: number }]>`
+        SELECT COALESCE(SUM(i.quantity * m.price), 0) as total
+        FROM Inventory i
+        JOIN Medicine m ON i.medicineId = m.id
+        WHERE i.quantity > 0
+      `.then((res) => Number(res?.[0]?.total || 0)),
       // Expiring within 30 days
       this.prisma.inventory.findMany({
         where: {

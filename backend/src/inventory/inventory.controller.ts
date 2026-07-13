@@ -6,8 +6,8 @@ export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
   @Get()
-  findAll(@Query('branchId') branchId?: string) {
-    return this.inventoryService.findAll(branchId);
+  findAll(@Query('branchId') branchId?: string, @Query('limit') limit?: number, @Query('search') search?: string) {
+    return this.inventoryService.findAll(branchId, limit, search);
   }
 
   @Get('low-stock')
