@@ -12,12 +12,29 @@ export class SalesService {
       throw new HttpException('Cart is empty', HttpStatus.BAD_REQUEST);
     }
 
-    // Get default branch and user since auth is not implemented yet
-    const branch = await this.prisma.branch.findFirst();
-    const user = await this.prisma.user.findFirst();
+    // Get default branch and user or create fallback if missing
+    let branch = await this.prisma.branch.findFirst();
+    if (!branch) {
+      branch = await this.prisma.branch.create({
+        data: {
+          name: 'Asosiy Apteka Filiali',
+          address: 'Toshkent',
+          contact: '+998900000000',
+        },
+      });
+    }
 
-    if (!branch || !user) {
-      throw new HttpException('No branch or user found to assign sale', HttpStatus.INTERNAL_SERVER_ERROR);
+    let user = await this.prisma.user.findFirst();
+    if (!user) {
+      user = await this.prisma.user.create({
+        data: {
+          email: 'admin@pharmauz.com',
+          password: 'hashedpassword',
+          firstName: 'Admin',
+          lastName: 'User',
+          branchId: branch.id,
+        },
+      });
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -72,19 +89,18 @@ export class SalesService {
         let currentInventoryId;
 
         if (inventory) {
-          // Deduct quantity
+          const newQty = Math.max(0, inventory.quantity - item.quantity);
           await tx.inventory.update({
             where: { id: inventory.id },
-            data: { quantity: { decrement: item.quantity } }
+            data: { quantity: newQty }
           });
           currentInventoryId = inventory.id;
         } else {
-          // Create new inventory with negative quantity
           const newInventory = await tx.inventory.create({
             data: {
               medicineId: item.medicineId,
               branchId: branch.id,
-              quantity: -item.quantity
+              quantity: 0
             }
           });
           currentInventoryId = newInventory.id;

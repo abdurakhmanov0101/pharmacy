@@ -882,11 +882,28 @@ export class TelegramService implements OnModuleInit {
         return;
       }
 
-      const branch = await this.prisma.branch.findFirst();
-      const user = await this.prisma.user.findFirst();
-      if (!branch || !user) {
-        await this.editOrSend(chatId, "❌ Tizimda filial yoki foydalanuvchi topilmadi.", { inline_keyboard: [[{ text: '🏠 Bosh menyu', callback_data: 'main_menu' }]] }, messageId);
-        return;
+      let branch = await this.prisma.branch.findFirst();
+      if (!branch) {
+        branch = await this.prisma.branch.create({
+          data: {
+            name: 'Asosiy Apteka Filiali',
+            address: 'Toshkent',
+            contact: '+998900000000',
+          },
+        });
+      }
+
+      let user = await this.prisma.user.findFirst();
+      if (!user) {
+        user = await this.prisma.user.create({
+          data: {
+            email: 'admin@pharmauz.com',
+            password: 'hashedpassword',
+            firstName: 'Admin',
+            lastName: 'User',
+            branchId: branch.id,
+          },
+        });
       }
 
       const totalAmount = medicine.price * qty;
