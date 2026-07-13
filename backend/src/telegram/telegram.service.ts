@@ -157,9 +157,41 @@ export class TelegramService implements OnModuleInit {
         return;
       }
 
-      // 4️⃣ Transkriptsiya natijasini yangilash
+      const cleanedQuery = this.cleanUzbekQuery(transcript);
+
+      // 4️⃣ O'zbekcha buyruqlarni ovozdan aniqlash
+      const lower = cleanedQuery.toLowerCase();
+      if (['dorilar', 'dori', "ro'yxat", "ro'yhat", 'spiska', 'barcha dorilar'].includes(lower)) {
+        await this.bot.editMessageText(`🎤 *Siz aytdingiz:* "${transcript}"\n📋 Barcha dorilar ro'yxati ochilmoqda...`, {
+          chat_id: chatId,
+          message_id: processingMsg.message_id,
+          parse_mode: 'Markdown',
+        });
+        await this.sendMedicinesList(chatId);
+        return;
+      }
+      if (['ombor', 'qoldiq', 'sklad', 'kam qolgan'].includes(lower)) {
+        await this.bot.editMessageText(`🎤 *Siz aytdingiz:* "${transcript}"\n📦 Ombor holati ochilmoqda...`, {
+          chat_id: chatId,
+          message_id: processingMsg.message_id,
+          parse_mode: 'Markdown',
+        });
+        await this.sendInventoryMenu(chatId);
+        return;
+      }
+      if (['kassa', 'pos', 'sotish', 'sotuv'].includes(lower)) {
+        await this.bot.editMessageText(`🎤 *Siz aytdingiz:* "${transcript}"\n🛒 POS Kassa ochilmoqda...`, {
+          chat_id: chatId,
+          message_id: processingMsg.message_id,
+          parse_mode: 'Markdown',
+        });
+        await this.sendPOSMenu(chatId);
+        return;
+      }
+
+      // 5️⃣ Transkriptsiya natijasini ko'rsatish
       await this.bot.editMessageText(
-        `🎤 Siz aytdingiz: *"${transcript}"*\n🔍 Dori qidirilmoqda...`,
+        `🎤 *Siz aytdingiz:* "${transcript}"\n🔍 *Qidirilmoqda:* "${cleanedQuery}"`,
         {
           chat_id: chatId,
           message_id: processingMsg.message_id,
@@ -167,8 +199,8 @@ export class TelegramService implements OnModuleInit {
         },
       );
 
-      // 5️⃣ Dori qidirish
-      await this.handleSearch(chatId, transcript);
+      // 6️⃣ Dori qidirish
+      await this.handleSearch(chatId, cleanedQuery);
 
     } catch (err: any) {
       this.logger.error('Voice processing error:', err?.message || err);
@@ -280,6 +312,21 @@ export class TelegramService implements OnModuleInit {
     for (const p of paths) {
       try { if (fs.existsSync(p)) fs.unlinkSync(p); } catch {}
     }
+  }
+
+  // O'zbekcha nutq/matn so'rovini tozalash (yordamchi so'zlarni olib tashlash)
+  private cleanUzbekQuery(raw: string): string {
+    let s = (raw || '').trim();
+    const stopWords = [
+      'bormi', 'bor mi', 'bomi', 'bor', 'yo\'qmi', 'yo\'q', 'bering', 'ber',
+      'nechaga', 'necha pul', 'pul', 'qancha', 'narxi', 'kerak', 'edi', 'dona',
+      'qutisi', 'quti', 'dorisi', 'dori', 'izlayapman', 'iltimos', 'aka', 'opa'
+    ];
+    for (const word of stopWords) {
+      s = s.replace(new RegExp(`\\b${word}\\b`, 'gi'), '');
+    }
+    const cleaned = s.replace(/\s+/g, ' ').trim();
+    return cleaned.length >= 2 ? cleaned : (raw || '').trim();
   }
 
   // ═══════════════════════════════════════════════════════
@@ -722,7 +769,7 @@ export class TelegramService implements OnModuleInit {
   }
 
   async handleSearch(chatId: number, query: string) {
-    const cleanText = (query || '').trim();
+    const cleanText = this.cleanUzbekQuery(query);
     const lower = cleanText.toLowerCase();
 
     let medicines = await this.prisma.medicine.findMany({
