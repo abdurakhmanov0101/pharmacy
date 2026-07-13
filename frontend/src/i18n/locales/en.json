@@ -1,0 +1,111 @@
+{
+  "sidebar": {
+    "dashboard": "Dashboard",
+    "medicines": "Medicines",
+    "inventory": "Inventory",
+    "pos": "POS",
+    "customers": "Customers",
+    "sales": "Sales History"
+  },
+  "header": {
+    "search": "Search...",
+    "logout": "Logout"
+  },
+  "medicines": {
+    "title": "Medicines",
+    "subtitle": "Manage your pharmacy's medicine catalog.",
+    "importExcel": "Import Excel",
+    "exportExcel": "Export to Excel",
+    "addMedicine": "Add Medicine",
+    "searchPlaceholder": "Search by name, generic name, or barcode...",
+    "columns": {
+      "name": "Name",
+      "genericName": "Generic Name",
+      "category": "Category",
+      "dosage": "Dosage",
+      "price": "Price (UZS)",
+      "barcode": "Barcode",
+      "stock": "Stock",
+      "actions": "Actions"
+    },
+    "noMedicinesFound": "No medicines found.",
+    "editMedicine": "Edit Medicine",
+    "saveChanges": "Save Changes",
+    "cancel": "Cancel",
+    "form": {
+      "name": "Name *",
+      "genericName": "Generic Name",
+      "price": "Price (UZS) *",
+      "dosage": "Dosage",
+      "barcode": "Barcode"
+    },
+    "alerts": {
+      "noValidExcel": "No valid medicines found in the Excel file.",
+      "importSuccess": "medicines imported successfully!",
+      "importError": "Failed to import medicines.",
+      "excelParseError": "Error parsing Excel file.",
+      "confirmDelete": "Are you sure you want to delete this medicine?",
+      "deleteError": "Failed to delete medicine.",
+      "saveError": "Error occurred while saving."
+    }
+  },
+  "dashboard": {
+    "overview": "Overview",
+    "today": "Today",
+    "todaysSales": "Today's Sales",
+    "realTimeData": "Real-time data",
+    "orders": "Orders",
+    "lowStockItems": "Low Stock Items",
+    "requiresAttention": "Requires attention",
+    "totalInventory": "Total Inventory",
+    "acrossBranches": "Across 1 branch",
+    "revenueOverview": "Revenue Overview",
+    "chartComingSoon": "[ Dynamic Revenue Chart Coming in Phase 3 ]",
+    "expiringSoon": "Expiring Soon",
+    "batch": "Batch",
+    "qty": "Qty",
+    "loadingExpiration": "Loading expiration data..."
+  },
+  "modules": {
+    "inventoryTitle": "Inventory Module",
+    "inventoryDesc": "This module will track stock levels, batch numbers, and expiration dates. It will be built in the upcoming phases!",
+    "posTitle": "POS Module",
+    "posDesc": "Point of Sale interface for customers will be built in the upcoming phases!",
+    "customersTitle": "Customers Module",
+    "customersDesc": "Manage customer profiles, debts, and loyalty programs in the upcoming phases!"
+  },
+  "pos": {
+    "title": "Point of Sale (POS)",
+    "catalog": "Catalog",
+    "cart": "Cart",
+    "searchPlaceholder": "Search by barcode or name...",
+    "addToCart": "Add",
+    "emptyCart": "Cart is empty. Add items.",
+    "total": "Total Amount",
+    "checkout": "Checkout",
+    "checkoutTitle": "Confirm Payment",
+    "paymentMethod": "Payment Method",
+    "cash": "Cash",
+    "card": "Card",
+    "confirmPayment": "Confirm Payment",
+    "cancel": "Cancel",
+    "successMessage": "Sale completed successfully!",
+    "errorMessage": "Error saving sale."
+  },
+  "salesHistory": {
+    "title": "Sales History",
+    "subtitle": "List of all completed sales",
+    "columns": {
+      "id": "ID",
+      "date": "Date",
+      "amount": "Amount",
+      "paymentMethod": "Payment Method",
+      "items": "Items",
+      "actions": "Actions"
+    },
+    "noData": "No sales found.",
+    "viewDetails": "View Details",
+    "detailsTitle": "Receipt Details",
+    "close": "Close"
+  }
+}

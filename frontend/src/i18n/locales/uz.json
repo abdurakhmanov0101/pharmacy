@@ -1,0 +1,113 @@
+{
+  "sidebar": {
+    "dashboard": "Asosiy oyna",
+    "medicines": "Dorilar",
+    "inventory": "Ombor",
+    "pos": "Sotuv (POS)",
+    "customers": "Mijozlar",
+    "sales": "Sotuvlar tarixi",
+    "branches": "Filiallar",
+    "settings": "Sozlamalar"
+  },
+  "header": {
+    "search": "Qidirish...",
+    "logout": "Chiqish"
+  },
+  "medicines": {
+    "title": "Dorilar",
+    "subtitle": "Dorixonangizdagi dorilar ro'yxatini boshqaring.",
+    "importExcel": "Excel yuklash",
+    "exportExcel": "Excelga yuklab olish",
+    "addMedicine": "Dori qo'shish",
+    "searchPlaceholder": "Nomi, tarkibi yoki barkod orqali qidirish...",
+    "columns": {
+      "name": "Nomi",
+      "genericName": "Tarkibi",
+      "category": "Kategoriya",
+      "dosage": "Dozasi",
+      "price": "Narxi (UZS)",
+      "barcode": "Barkod",
+      "stock": "Qoldiq",
+      "actions": "Amallar"
+    },
+    "noMedicinesFound": "Dorilar topilmadi.",
+    "editMedicine": "Dorini tahrirlash",
+    "saveChanges": "Saqlash",
+    "cancel": "Bekor qilish",
+    "form": {
+      "name": "Nomi *",
+      "genericName": "Tarkibi",
+      "price": "Narxi (UZS) *",
+      "dosage": "Dozasi",
+      "barcode": "Barkod"
+    },
+    "alerts": {
+      "noValidExcel": "Excel faylida yaroqli dorilar topilmadi.",
+      "importSuccess": "ta dori muvaffaqiyatli import qilindi!",
+      "importError": "Dorilarni import qilishda xatolik yuz berdi.",
+      "excelParseError": "Excel faylni o'qishda xatolik yuz berdi.",
+      "confirmDelete": "Rostdan ham bu dorini o'chirmoqchimisiz?",
+      "deleteError": "Dorini o'chirishda xatolik yuz berdi.",
+      "saveError": "Dorini saqlashda xatolik yuz berdi."
+    }
+  },
+  "dashboard": {
+    "overview": "Asosiy oyna",
+    "today": "Bugun",
+    "todaysSales": "Bugungi savdo",
+    "realTimeData": "Haqiqiy vaqtdagi ma'lumotlar",
+    "orders": "Buyurtmalar",
+    "lowStockItems": "Kam qolgan tovarlar",
+    "requiresAttention": "E'tibor talab etiladi",
+    "totalInventory": "Jami ombor",
+    "acrossBranches": "1 ta filial bo'yicha",
+    "revenueOverview": "Daromadlar sharhi",
+    "chartComingSoon": "[ Daromadlar grafigi 3-bosqichda qo'shiladi ]",
+    "expiringSoon": "Yaqinda muddati tugaydi",
+    "batch": "Partiya",
+    "qty": "Soni",
+    "loadingExpiration": "Muddat ma'lumotlari yuklanmoqda..."
+  },
+  "modules": {
+    "inventoryTitle": "Ombor moduli",
+    "inventoryDesc": "Bu modul dorilar qoldig'i, yaroqlilik muddati va partiyalarni boshqaradi. U keyingi bosqichda ishga tushadi!",
+    "posTitle": "Sotuv (POS) moduli",
+    "posDesc": "Mijozlarga xizmat ko'rsatish va savdo qilish interfeysi keyingi bosqichda ishga tushadi!",
+    "customersTitle": "Mijozlar moduli",
+    "customersDesc": "Mijozlar bazasi, qarzlar va sodiqlik dasturlarini boshqarish qismi keyingi bosqichda ishga tushadi!"
+  },
+  "pos": {
+    "title": "Sotuv (POS)",
+    "catalog": "Katalog",
+    "cart": "Savatcha",
+    "searchPlaceholder": "Shtrix-kod yoki nom orqali qidirish...",
+    "addToCart": "Qo'shish",
+    "emptyCart": "Savatcha bo'sh. Dori qo'shing.",
+    "total": "Jami summa",
+    "checkout": "To'lov qilish",
+    "checkoutTitle": "To'lovni tasdiqlash",
+    "paymentMethod": "To'lov turi",
+    "cash": "Naqd",
+    "card": "Plastik karta",
+    "confirmPayment": "To'lovni amalga oshirish",
+    "cancel": "Bekor qilish",
+    "successMessage": "Savdo muvaffaqiyatli yakunlandi!",
+    "errorMessage": "Savdoni saqlashda xatolik yuz berdi."
+  },
+  "salesHistory": {
+    "title": "Sotuvlar tarixi",
+    "subtitle": "Barcha amalga oshirilgan savdolar ro'yxati",
+    "columns": {
+      "id": "ID",
+      "date": "Sana",
+      "amount": "Summa",
+      "paymentMethod": "To'lov turi",
+      "items": "Mahsulotlar",
+      "actions": "Amallar"
+    },
+    "noData": "Sotuvlar tarixi bo'sh.",
+    "viewDetails": "Batafsil ko'rish",
+    "detailsTitle": "Chek tafsilotlari",
+    "close": "Yopish"
+  }
+}

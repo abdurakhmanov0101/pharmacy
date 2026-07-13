@@ -1,0 +1,111 @@
+{
+  "sidebar": {
+    "dashboard": "Главная",
+    "medicines": "Медикаменты",
+    "inventory": "Склад",
+    "pos": "Продажи (POS)",
+    "customers": "Клиенты",
+    "sales": "История продаж"
+  },
+  "header": {
+    "search": "Поиск...",
+    "logout": "Выйти"
+  },
+  "medicines": {
+    "title": "Медикаменты",
+    "subtitle": "Управление каталогом медикаментов аптеки.",
+    "importExcel": "Импорт Excel",
+    "exportExcel": "Экспорт в Excel",
+    "addMedicine": "Добавить",
+    "searchPlaceholder": "Поиск по названию, составу или штрихкоду...",
+    "columns": {
+      "name": "Название",
+      "genericName": "Состав",
+      "category": "Категория",
+      "dosage": "Дозировка",
+      "price": "Цена (UZS)",
+      "barcode": "Штрихкод",
+      "stock": "Остаток",
+      "actions": "Действия"
+    },
+    "noMedicinesFound": "Медикаменты не найдены.",
+    "editMedicine": "Редактировать",
+    "saveChanges": "Сохранить",
+    "cancel": "Отмена",
+    "form": {
+      "name": "Название *",
+      "genericName": "Состав",
+      "price": "Цена (UZS) *",
+      "dosage": "Дозировка",
+      "barcode": "Штрихкод"
+    },
+    "alerts": {
+      "noValidExcel": "В Excel файле не найдено валидных медикаментов.",
+      "importSuccess": "медикаментов успешно импортировано!",
+      "importError": "Ошибка при импорте медикаментов.",
+      "excelParseError": "Ошибка при чтении Excel файла.",
+      "confirmDelete": "Вы уверены, что хотите удалить этот медикамент?",
+      "deleteError": "Ошибка при удалении медикамента.",
+      "saveError": "Ошибка при сохранении медикамента."
+    }
+  },
+  "dashboard": {
+    "overview": "Обзор",
+    "today": "Сегодня",
+    "todaysSales": "Продажи за сегодня",
+    "realTimeData": "Данные в реальном времени",
+    "orders": "Заказы",
+    "lowStockItems": "Мало на складе",
+    "requiresAttention": "Требует внимания",
+    "totalInventory": "Общий склад",
+    "acrossBranches": "По 1 филиалу",
+    "revenueOverview": "Обзор доходов",
+    "chartComingSoon": "[ График доходов появится в 3 фазе ]",
+    "expiringSoon": "Скоро истекает срок",
+    "batch": "Партия",
+    "qty": "Кол-во",
+    "loadingExpiration": "Загрузка данных о сроках..."
+  },
+  "modules": {
+    "inventoryTitle": "Модуль склада",
+    "inventoryDesc": "Этот модуль будет отслеживать остатки, сроки годности и партии. Он будет запущен на следующем этапе!",
+    "posTitle": "Модуль продаж (POS)",
+    "posDesc": "Интерфейс обслуживания клиентов и продаж будет запущен на следующем этапе!",
+    "customersTitle": "Модуль клиентов",
+    "customersDesc": "Управление базой клиентов, долгами и программами лояльности будет запущено на следующем этапе!"
+  },
+  "pos": {
+    "title": "Продажи (POS)",
+    "catalog": "Каталог",
+    "cart": "Корзина",
+    "searchPlaceholder": "Поиск по штрихкоду или названию...",
+    "addToCart": "Добавить",
+    "emptyCart": "Корзина пуста. Добавьте медикаменты.",
+    "total": "Итого",
+    "checkout": "Оплатить",
+    "checkoutTitle": "Подтверждение оплаты",
+    "paymentMethod": "Способ оплаты",
+    "cash": "Наличные",
+    "card": "Карта",
+    "confirmPayment": "Подтвердить оплату",
+    "cancel": "Отмена",
+    "successMessage": "Продажа успешно завершена!",
+    "errorMessage": "Ошибка при сохранении продажи."
+  },
+  "salesHistory": {
+    "title": "История продаж",
+    "subtitle": "Список всех совершенных продаж",
+    "columns": {
+      "id": "ID",
+      "date": "Дата",
+      "amount": "Сумма",
+      "paymentMethod": "Способ оплаты",
+      "items": "Товары",
+      "actions": "Действия"
+    },
+    "noData": "История продаж пуста.",
+    "viewDetails": "Подробнее",
+    "detailsTitle": "Детали чека",
+    "close": "Закрыть"
+  }
+}

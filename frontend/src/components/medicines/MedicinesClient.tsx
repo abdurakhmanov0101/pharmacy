@@ -1,0 +1,431 @@
+'use client';
+
+import { useState, useRef } from 'react';
+import { Search, Plus, Edit, Trash2, X, Upload, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import { useLanguage } from '@/i18n/LanguageContext';
+
+export default function MedicinesClient({ initialMedicines }: { initialMedicines: any[] }) {
+  const { t } = useLanguage();
+  const [medicines, setMedicines] = useState(initialMedicines);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 50;
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Modal states
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [currentMedicineId, setCurrentMedicineId] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    genericName: '',
+    price: '',
+    dosage: '',
+    barcode: '',
+    categoryName: '',
+    quantity: ''
+  });
+
+  const filteredMedicines = medicines.filter(med => 
+    med.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (med.genericName && med.genericName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (med.barcode && med.barcode.includes(searchQuery))
+  );
+
+  const totalPages = Math.ceil(filteredMedicines.length / itemsPerPage) || 1;
+  const paginatedMedicines = filteredMedicines.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+    setCurrentPage(1);
+  };
+
+  const openAddModal = () => {
+    setIsEditMode(false);
+    setCurrentMedicineId(null);
+    setFormData({ name: '', genericName: '', price: '', dosage: '', barcode: '', categoryName: '', quantity: '' });
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (med: any) => {
+    setIsEditMode(true);
+    setCurrentMedicineId(med.id);
+    setFormData({
+      name: med.name,
+      genericName: med.genericName || '',
+      price: med.price.toString(),
+      dosage: med.dosage || '',
+      barcode: med.barcode || '',
+      categoryName: med.category?.name || '',
+      quantity: med.inventory?.[0]?.quantity?.toString() || ''
+    });
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const fetchMedicines = async () => {
+    try {
+      const res = await fetch('http://localhost:3001/api/medicines');
+      if (res.ok) {
+        const data = await res.json();
+        setMedicines(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch medicines');
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const data = new Uint8Array(event.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        
+        const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
+        
+        const payload = jsonData.map((rawRow: any) => {
+          const row: any = {};
+          for (const key in rawRow) {
+            row[key.trim().toLowerCase()] = rawRow[key];
+          }
+
+          const parseNumber = (val: any) => {
+            if (!val) return 0;
+            if (typeof val === 'number') return val;
+            const str = String(val).replace(/[^0-9.]/g, '');
+            return Number(str) || 0;
+          };
+
+          const getVal = (keys: string[]) => {
+            for (const k of keys) {
+              if (row[k] !== undefined) return row[k];
+            }
+            return '';
+          };
+
+          const priceVal = getVal(['price', 'narx', 'narxi', 'narxi (uzs)', 'цена']);
+          const qtyVal = getVal(['quantity', 'qty', 'soni', 'qoldiq', 'stock', 'остаток', 'кол-во', 'miqdor', 'miqdori']);
+
+          return {
+            name: String(row.name || row.nomi || row.наименование || row.maxsulot || row['dori nomi'] || row.tovar || row.mahsulot || '').trim(),
+            genericName: String(row['generic name'] || row.genericname || row.tarkibi || row.состав || '').trim(),
+            categoryName: String(row.category || row.kategoriya || row.категория || '').trim(),
+            price: parseNumber(priceVal),
+            dosage: String(row.dosage || row.dozasi || row.дозировка || '').trim(),
+            barcode: String(row.barcode || row.barkod || row.штрихкод || '').trim(),
+            quantity: parseNumber(qtyVal)
+          };
+        }).filter((med: any) => med.name); // faqat nomi borlarini olamiz
+
+        if (payload.length === 0) {
+          alert(t('medicines.alerts.noValidExcel'));
+          return;
+        }
+
+        const res = await fetch('http://localhost:3001/api/medicines/bulk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (res.ok) {
+          await fetchMedicines();
+          alert(`${payload.length} ${t('medicines.alerts.importSuccess')}`);
+        } else {
+          alert(t('medicines.alerts.importError'));
+        }
+      } catch (err) {
+        console.error(err);
+        alert(t('medicines.alerts.excelParseError'));
+      } finally {
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const payload = {
+      name: formData.name,
+      genericName: formData.genericName,
+      price: Number(formData.price),
+      dosage: formData.dosage,
+      barcode: formData.barcode,
+      categoryName: formData.categoryName,
+      quantity: Number(formData.quantity) || 0
+    };
+
+    try {
+      if (isEditMode) {
+        const res = await fetch(`http://localhost:3001/api/medicines/${currentMedicineId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error();
+      } else {
+        const res = await fetch('http://localhost:3001/api/medicines/bulk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify([payload]),
+        });
+        if (!res.ok) throw new Error();
+      }
+      
+      await fetchMedicines();
+      closeModal();
+    } catch (err) {
+      alert(t('medicines.alerts.saveError'));
+    }
+  };
+
+  const handleExportExcel = () => {
+    // Prepare data for export
+    const dataToExport = filteredMedicines.map((med: any) => ({
+      [t('medicines.columns.name')]: med.name,
+      [t('medicines.columns.genericName')]: med.genericName || '',
+      [t('medicines.columns.category')]: med.category?.name || '',
+      [t('medicines.columns.dosage')]: med.dosage || '',
+      [t('medicines.columns.price')]: med.price,
+      [t('medicines.columns.stock')]: med.inventory?.reduce((sum: number, inv: any) => sum + inv.quantity, 0) || 0,
+      [t('medicines.columns.barcode')]: med.barcode || ''
+    }));
+
+    // Create workbook and worksheet
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Medicines');
+
+    // Generate Excel file and trigger download
+    XLSX.writeFile(workbook, 'medicines_export.xlsx');
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm(t('medicines.alerts.confirmDelete'))) return;
+    try {
+      const res = await fetch(`http://localhost:3001/api/medicines/${id}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        await fetchMedicines();
+      } else {
+        alert(t('medicines.alerts.deleteError'));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  return (
+    <div className="p-4 sm:p-6 md:p-8">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
+        <div>
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-3">
+            {t('medicines.title')}
+            <span className="text-xs sm:text-sm px-3 py-1 rounded-full bg-primary/10 text-primary font-medium">
+              {filteredMedicines.length} ta
+            </span>
+          </h2>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">{t('medicines.subtitle')}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            className="hidden" 
+            accept=".xlsx, .xls, .csv" 
+            onChange={handleFileUpload} 
+          />
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-2 text-xs sm:text-sm bg-secondary text-secondary-foreground px-3 sm:px-4 py-2 rounded-md font-medium border hover:bg-secondary/80 transition-colors"
+          >
+            <Upload className="h-4 w-4" /> {t('medicines.importExcel')}
+          </button>
+          <button 
+            onClick={handleExportExcel}
+            className="flex items-center gap-2 text-xs sm:text-sm bg-secondary text-secondary-foreground px-3 sm:px-4 py-2 rounded-md font-medium border hover:bg-secondary/80 transition-colors"
+          >
+            <Download className="h-4 w-4" /> {t('medicines.exportExcel')}
+          </button>
+          <button 
+            onClick={openAddModal}
+            className="flex items-center gap-2 text-xs sm:text-sm bg-primary text-primary-foreground px-3 sm:px-4 py-2 rounded-md font-medium hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="h-4 w-4" /> {t('medicines.addMedicine')}
+          </button>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4 mb-6">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input 
+            type="text" 
+            placeholder={t('medicines.searchPlaceholder')} 
+            value={searchQuery}
+            onChange={handleSearchChange}
+            className="w-full pl-10 pr-4 py-2 bg-background border border-border rounded-md text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+          />
+        </div>
+      </div>
+
+      <div className="border border-border rounded-lg bg-card overflow-hidden flex-1 flex flex-col">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="text-xs text-muted-foreground uppercase bg-muted/50 border-b border-border">
+              <tr>
+                <th className="px-6 py-4 font-medium">{t('medicines.columns.name')}</th>
+                <th className="px-6 py-4 font-medium">{t('medicines.columns.genericName')}</th>
+                <th className="px-6 py-4 font-medium">{t('medicines.columns.category')}</th>
+                <th className="px-6 py-4 font-medium">{t('medicines.columns.dosage')}</th>
+                <th className="px-6 py-4 font-medium">{t('medicines.columns.price')}</th>
+                <th className="px-6 py-4 font-medium">{t('medicines.columns.stock')}</th>
+                <th className="px-6 py-4 font-medium">{t('medicines.columns.barcode')}</th>
+                <th className="px-6 py-4 text-right font-medium">{t('medicines.columns.actions')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedMedicines.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-8 text-center text-muted-foreground">
+                    {t('medicines.noMedicinesFound')}
+                  </td>
+                </tr>
+              ) : (
+                paginatedMedicines.map((med: any) => (
+                  <tr key={med.id} className="border-b border-border hover:bg-muted/30 transition-colors">
+                    <td className="px-6 py-4 font-medium">{med.name}</td>
+                    <td className="px-6 py-4 text-muted-foreground">{med.genericName}</td>
+                    <td className="px-6 py-4 text-muted-foreground">{med.category?.name}</td>
+                    <td className="px-6 py-4">{med.dosage}</td>
+                    <td className="px-6 py-4 font-medium text-green-600">{med.price.toLocaleString()}</td>
+                    <td className="px-6 py-4 font-bold text-primary">
+                      {med.inventory?.reduce((sum: number, inv: any) => sum + inv.quantity, 0) || 0}
+                    </td>
+                    <td className="px-6 py-4 font-mono text-xs text-muted-foreground">{med.barcode || 'N/A'}</td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button onClick={() => openEditModal(med)} className="p-2 text-muted-foreground hover:text-primary transition-colors rounded-md hover:bg-primary/10">
+                          <Edit className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => handleDelete(med.id)} className="p-2 text-muted-foreground hover:text-destructive transition-colors rounded-md hover:bg-destructive/10">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination Controls */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-border bg-card">
+          <span className="text-xs sm:text-sm text-muted-foreground font-medium">
+            Ko&apos;rsatildi: {paginatedMedicines.length} ta (Jami {filteredMedicines.length} ta dori)
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3.5 py-1.5 border border-border rounded-lg text-xs font-semibold disabled:opacity-40 hover:bg-muted transition-colors"
+            >
+              Oldingi
+            </button>
+            <span className="text-xs font-bold px-2">
+              Sahifa {currentPage} / {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3.5 py-1.5 border border-border rounded-lg text-xs font-semibold disabled:opacity-40 hover:bg-muted transition-colors"
+            >
+              Keyingi
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-background rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between p-5 border-b">
+              <h3 className="font-semibold text-lg">{isEditMode ? t('medicines.editMedicine') : t('medicines.addMedicine')}</h3>
+              <button onClick={closeModal} className="text-muted-foreground hover:text-foreground">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="overflow-y-auto p-5">
+              <form id="medicineForm" onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1.5">{t('medicines.form.name')} <span className="text-red-500">*</span></label>
+                  <input required name="name" value={formData.name} onChange={handleInputChange} className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/50" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5">{t('medicines.form.genericName')}</label>
+                    <input name="genericName" value={formData.genericName} onChange={handleInputChange} className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/50" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5">Kategoriya</label>
+                    <input name="categoryName" value={formData.categoryName || ''} onChange={handleInputChange} placeholder="Yangi yoki mavjud" className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/50" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5">{t('medicines.form.price')} <span className="text-red-500">*</span></label>
+                    <input required type="number" name="price" value={formData.price} onChange={handleInputChange} className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/50" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5">{t('medicines.form.dosage')}</label>
+                    <input name="dosage" value={formData.dosage} onChange={handleInputChange} className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/50" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5">{t('medicines.form.barcode')}</label>
+                    <input name="barcode" value={formData.barcode} onChange={handleInputChange} className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/50" />
+                  </div>
+                  {!isEditMode && (
+                    <div>
+                      <label className="block text-sm font-medium mb-1.5 text-primary">Soni (Nechta kirim qilish)</label>
+                      <input type="number" name="quantity" value={formData.quantity || ''} onChange={handleInputChange} placeholder="0" className="w-full px-3 py-2 border border-primary/30 rounded-lg outline-none focus:ring-2 focus:ring-primary/50" />
+                    </div>
+                  )}
+                </div>
+              </form>
+            </div>
+            <div className="p-5 border-t bg-muted/20 flex justify-end gap-3">
+              <button type="button" onClick={closeModal} className="px-5 py-2.5 border rounded-lg hover:bg-muted font-medium transition-colors">{t('medicines.cancel')}</button>
+              <button type="submit" form="medicineForm" className="px-5 py-2.5 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 font-medium shadow-sm transition-colors">
+                {isEditMode ? t('medicines.saveChanges') : t('medicines.addMedicine')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

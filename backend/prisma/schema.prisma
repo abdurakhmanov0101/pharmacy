@@ -1,0 +1,344 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  roleId    String?
+  branchId  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  role      Role?     @relation(fields: [roleId], references: [id])
+  branch    Branch?   @relation(fields: [branchId], references: [id])
+  sales     Sale[]
+  auditLogs AuditLog[]
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  permissions Permission[]
+  users       User[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Permission {
+  id        String   @id @default(uuid())
+  name      String   @unique // e.g. "VIEW_SALES", "MANAGE_INVENTORY"
+  roles     Role[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Branch {
+  id        String   @id @default(uuid())
+  name      String
+  address   String?
+  contact   String?
+  isActive  Boolean  @default(true)
+  users     User[]
+  sales     Sale[]
+  inventory Inventory[]
+  purchases PurchaseOrder[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Medicine {
+  id             String   @id @default(uuid())
+  name           String
+  genericName    String?
+  categoryId     String?
+  manufacturerId String?
+  barcode        String?  @unique
+  price          Float
+  purchasePrice  Float?   @default(0)
+  dosage         String?
+  imageUrl       String?
+  isActive       Boolean  @default(true)
+
+  category       Category?     @relation(fields: [categoryId], references: [id])
+  manufacturer   Manufacturer? @relation(fields: [manufacturerId], references: [id])
+  inventory      Inventory[]
+  saleItems      SaleItem[]
+  purchaseItems  PurchaseItem[]
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([name])
+}
+
+model Category {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  medicines Medicine[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Manufacturer {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  contact   String?
+  medicines Medicine[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Inventory {
+  id          String   @id @default(uuid())
+  medicineId  String
+  branchId    String
+  quantity    Int      @default(0)
+  batchNumber String?
+  expiryDate  DateTime?
+
+  medicine    Medicine @relation(fields: [medicineId], references: [id])
+  branch      Branch   @relation(fields: [branchId], references: [id])
+
+  transactions InventoryTransaction[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([medicineId, branchId, batchNumber])
+}
+
+model InventoryTransaction {
+  id          String   @id @default(uuid())
+  inventoryId String
+  type        String   // "IN", "OUT", "ADJUSTMENT"
+  quantity    Int
+  notes       String?
+
+  inventory   Inventory @relation(fields: [inventoryId], references: [id])
+
+  createdAt   DateTime @default(now())
+}
+
+model Customer {
+  id            String   @id @default(uuid())
+  name          String
+  phone         String?  @unique
+  loyaltyPoints Int      @default(0)
+  sales         Sale[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Supplier {
+  id        String   @id @default(uuid())
+  name      String
+  contact   String?
+  balance   Float    @default(0)
+
+  purchases PurchaseOrder[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Sale {
+  id            String   @id @default(uuid())
+  branchId      String
+  userId        String
+  customerId    String?
+  totalAmount   Float
+  paymentMethod String   // e.g., "CASH", "CARD", "QR"
+  status        String   @default("COMPLETED")
+
+  branch        Branch   @relation(fields: [branchId], references: [id])
+  user          User     @relation(fields: [userId], references: [id])
+  customer      Customer? @relation(fields: [customerId], references: [id])
+  items         SaleItem[]
+  payments      Payment[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model SaleItem {
+  id         String   @id @default(uuid())
+  saleId     String
+  medicineId String
+  quantity   Int
+  unitPrice  Float
+  discount   Float    @default(0)
+
+  sale       Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  medicine   Medicine @relation(fields: [medicineId], references: [id])
+}
+
+model Payment {
+  id            String   @id @default(uuid())
+  saleId        String
+  amount        Float
+  method        String
+  transactionId String?
+
+  sale          Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime @default(now())
+}
+
+model PurchaseOrder {
+  id          String   @id @default(uuid())
+  supplierId  String
+  branchId    String
+  status      String   @default("PENDING") // PENDING, RECEIVED, CANCELLED
+  totalAmount Float    @default(0)
+
+  supplier    Supplier @relation(fields: [supplierId], references: [id])
+  branch      Branch   @relation(fields: [branchId], references: [id])
+  items       PurchaseItem[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PurchaseItem {
+  id              String   @id @default(uuid())
+  purchaseOrderId String
+  medicineId      String
+  quantity        Int
+  unitPrice       Float
+
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  medicine        Medicine      @relation(fields: [medicineId], references: [id])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String
+  action    String
+  details   String?
+
+  user      User     @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  userId    String?  // nullable if broadcast
+
+  createdAt DateTime @default(now())
+}
+
+model Employee {
+  id              String   @id @default(uuid())
+  fullName        String
+  position        String?
+  department      String?  @default("Umumiy")
+  salary          Float    @default(0)
+  hireDate        DateTime @default(now())
+  status          String   @default("ACTIVE") // ACTIVE, ON_LEAVE, TERMINATED
+  contactInfo     String?
+  shiftStart      String?  // Format HH:mm
+  shiftEnd        String?  // Format HH:mm
+  faceDescriptor  String?  // JSON stringified Float32Array (128d face embedding)
+
+  attendanceEvents AttendanceEvent[]
+  leaves           Leave[]
+  payrolls         Payroll[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Leave {
+  id          String   @id @default(uuid())
+  employeeId  String
+  startDate   DateTime
+  endDate     DateTime
+  type        String   // SICK, VACATION, UNPAID
+  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  reason      String?
+
+  employee    Employee @relation(fields: [employeeId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Payroll {
+  id          String   @id @default(uuid())
+  employeeId  String
+  month       String   // e.g. "2026-07"
+  baseSalary  Float    @default(0)
+  bonus       Float    @default(0)
+  deduction   Float    @default(0)
+  netSalary   Float    @default(0)
+  isPaid      Boolean  @default(false)
+  notes       String?
+
+  employee    Employee @relation(fields: [employeeId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([employeeId, month])
+}
+
+model Shift {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  startTime   String   // Format HH:mm
+  endTime     String   // Format HH:mm
+  gracePeriod Int      @default(15) // Minutes allowed to be late
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AttendanceEvent {
+  id          String   @id @default(uuid())
+  employeeId  String
+  eventType   String   // 'check_in' or 'check_out'
+  eventTime   DateTime @default(now())
+  cameraId    String?
+  isLate      Boolean  @default(false)
+  minutesDiff Int      @default(0)
+
+  employee    Employee @relation(fields: [employeeId], references: [id])
+}
+
+model CustomerEvent {
+  id          String   @id @default(uuid())
+  trackId     String
+  cameraId    String?
+  eventType   String   // 'zone_exit_no_checkout', 'suspicious_lingering'
+  riskScore   Int      @default(0)
+  reviewed    Boolean  @default(false)
+  
+  createdAt   DateTime @default(now())
+}
+
+model Expense {
+  id          String   @id @default(uuid())
+  title       String
+  category    String   // OYLIK, AVANS, IJARA, KOMMUNAL, TRANSPORT, BOSHQA
+  amount      Float
+  employeeId  String?
+  branchId    String?
+  notes       String?
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+}
