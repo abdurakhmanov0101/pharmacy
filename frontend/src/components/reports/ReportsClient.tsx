@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BarChart3, TrendingUp, ShoppingCart, Award, DollarSign } from "lucide-react";
+import { BarChart3, TrendingUp, ShoppingCart, Award, DollarSign, AlertTriangle, PackageX } from "lucide-react";
 import {
   AreaChart,
   Area,
@@ -26,6 +26,7 @@ interface ReportData {
   totalSales: number;
   averageSale: number;
   topMedicines: { name: string; totalQuantity: number; totalRevenue: number }[];
+  deadMedicines?: any[];
 }
 
 interface ChartDay {
@@ -312,6 +313,61 @@ export default function ReportsClient({
           </div>
         </div>
       </div>
+
+      {/* Dead Medicines Grid */}
+      <div className="mt-6 bg-card border border-border rounded-xl p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-semibold flex items-center gap-2 text-red-500">
+            <PackageX className="h-5 w-5" />
+            Sotilmayotgan dorilar (Qotib qolgan tovarlar)
+          </h2>
+          <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md">
+            Tanlangan vaqt ichida umuman sotilmagan dorilar
+          </span>
+        </div>
+        
+        {report?.deadMedicines && report.deadMedicines.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-muted-foreground text-xs uppercase tracking-wide">
+                  <th className="text-left pb-3 pr-4">#</th>
+                  <th className="text-left pb-3 pr-4">Dori nomi</th>
+                  <th className="text-left pb-3 pr-4">Kategoriyasi</th>
+                  <th className="text-right pb-3">Ombordagi qoldiq</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {report.deadMedicines.map((med: any, i: number) => (
+                  <tr key={i} className="hover:bg-muted/30 transition-colors">
+                    <td className="py-3 pr-4">
+                      <span className="text-muted-foreground font-mono text-xs">{i + 1}</span>
+                    </td>
+                    <td className="py-3 pr-4">
+                      <p className="font-medium text-foreground">{med.name}</p>
+                    </td>
+                    <td className="py-3 pr-4 text-muted-foreground text-xs">
+                      {med.categoryName}
+                    </td>
+                    <td className="py-3 text-right">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-red-500/10 text-red-600 font-bold text-xs">
+                        {med.stockQuantity} dona
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="py-8 flex flex-col items-center justify-center text-muted-foreground">
+            <AlertTriangle className="h-8 w-8 text-emerald-500/50 mb-2" />
+            <p className="text-sm font-medium">Hammasi joyida!</p>
+            <p className="text-xs">Omborda yotib qolgan dorilar topilmadi.</p>
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }

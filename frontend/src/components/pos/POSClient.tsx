@@ -1,8 +1,8 @@
 'use client';
 
 import useSWR from 'swr';
-import { useState, useEffect, useRef } from 'react';
-import { Search, ShoppingCart, Plus, Minus, Trash2, CreditCard, Banknote, X, ScanLine, Zap, CheckCircle2, Package, Camera, Wallet } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { Search, ShoppingCart, Plus, Minus, Trash2, CreditCard, Banknote, X, ScanLine, Zap, CheckCircle2, Package, Camera, Wallet, Lock, LogOut, Clock } from 'lucide-react';
 import { useLanguage } from '@/i18n/LanguageContext';
 import MobileScanner from './MobileScanner';
 
@@ -25,6 +25,18 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
   const [scanNotification, setScanNotification] = useState<string | null>(null);
   const barcodeBufferRef = useRef<string>('');
   const lastKeyTimeRef = useRef<number>(0);
+
+  // Session states
+  const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
+  const [startingCash, setStartingCash] = useState<string>('');
+  const [closingCash, setClosingCash] = useState<string>('');
+  const [isClosingSession, setIsClosingSession] = useState(false);
+
+  const { data: currentSession, mutate: mutateSession } = useSWR(
+    `http://localhost:3001/api/sessions/current-default`,
+    fetcher,
+    { refreshInterval: 5000 }
+  );
 
   // Audio beep effect for barcode scanner
   const playBeep = () => {
@@ -92,7 +104,7 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
   };
 
   const handleBarcodeScanned = async (barcode: string) => {
-    const found = medicines.find(m => m.barcode === barcode || m.name.toLowerCase() === barcode.toLowerCase());
+    const found = medicines.find((m: any) => m.barcode === barcode || m.name.toLowerCase() === barcode.toLowerCase());
 
     if (!found) {
       playBeep();
@@ -118,9 +130,12 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
         if (res.ok) {
           showScanToast(`⚡ TEZKOR SOTUV (Skaner): "${found.name}" (1 dona) sotildi va ombordan kamaydi!`);
           mutateMedicines();
+          mutateSession();
+        } else {
+          throw new Error('Sotuvda xatolik yuz berdi');
         }
-      } catch (err) {
-        showScanToast(`❌ Sotuvda xatolik yuz berdi`);
+      } catch (err: any) {
+        showScanToast(`❌ ${err.message || 'Sotuvda xatolik yuz berdi'}`);
       }
     } else {
       addToCart(found);
@@ -128,16 +143,20 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
     }
   };
 
-  const filteredMedicines = medicines.filter(med => 
-    med.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (med.barcode && med.barcode.includes(searchQuery))
-  );
+  const filteredMedicines = useMemo(() => {
+    return medicines.filter((med: any) => 
+      med.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (med.barcode && med.barcode.includes(searchQuery))
+    );
+  }, [medicines, searchQuery]);
 
   const totalPages = Math.ceil(filteredMedicines.length / itemsPerPage) || 1;
-  const paginatedMedicines = filteredMedicines.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const paginatedMedicines = useMemo(() => {
+    return filteredMedicines.slice(
+      (currentPage - 1) * itemsPerPage,
+      currentPage * itemsPerPage
+    );
+  }, [filteredMedicines, currentPage, itemsPerPage]);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
@@ -200,14 +219,56 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
       if (res.ok) {
         alert(t('pos.successMessage') || "✅ Sotuv muvaffaqiyatli amalga oshdi va dorilar ombordan chegirildi!");
         setCart([]);
+        setCashAmount('');
         setIsCheckoutModalOpen(false);
         mutateMedicines();
+        mutateSession();
       } else {
         alert(t('pos.errorMessage') || "Sotuvda xatolik");
       }
     } catch (err) {
       console.error(err);
       alert(t('pos.errorMessage') || "Xatolik");
+    }
+  };
+
+  const handleOpenSession = async () => {
+    try {
+      const res = await fetch('http://localhost:3001/api/sessions/open-default', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ startingCash: Number(startingCash) || 0 }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || "Xatolik yuz berdi");
+      }
+      setIsSessionModalOpen(false);
+      setStartingCash('');
+      mutateSession();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const handleCloseSession = async () => {
+    if (!currentSession?.id) return;
+    try {
+      const res = await fetch(`http://localhost:3001/api/sessions/close/${currentSession.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ closingCash: Number(closingCash) || 0 }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || "Xatolik yuz berdi");
+      }
+      setIsSessionModalOpen(false);
+      setIsClosingSession(false);
+      setClosingCash('');
+      mutateSession();
+    } catch (err: any) {
+      alert(err.message);
     }
   };
 
@@ -222,7 +283,20 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
       )}
 
       {/* Mobile Tab Switcher */}
-      <div className="flex lg:hidden bg-muted p-1 rounded-xl gap-1 mb-2 w-full shrink-0">
+      <div className="flex lg:hidden bg-muted p-1 rounded-xl gap-1 mb-2 w-full shrink-0 relative">
+        {(!currentSession || currentSession.status === 'CLOSED') && (
+            <div className="absolute inset-0 z-50 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center p-4">
+              <button
+                onClick={() => {
+                  setIsClosingSession(false);
+                  setIsSessionModalOpen(true);
+                }}
+                className="w-full bg-primary text-primary-foreground font-bold py-3 rounded-xl shadow-lg"
+              >
+                Smenani Ochish
+              </button>
+            </div>
+          )}
         <button
           type="button"
           onClick={() => setActiveMobileTab('catalog')}
@@ -257,24 +331,45 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
       {/* Catalog Section */}
       <div className={`flex-1 flex flex-col h-full overflow-hidden ${activeMobileTab === 'catalog' ? 'flex' : 'hidden lg:flex'}`}>
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
-          <div>
-            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">{t('pos.catalog') || "Sotuv (POS & Skaner)"}</h2>
-            <p className="text-xs text-muted-foreground">Barkod skaner apparati yordamida yoki qo&apos;lda dorilarni qidiring</p>
+          <div className="flex flex-col gap-1">
+            <h1 className="text-xl sm:text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/60 tracking-tight">
+              Sotuv Oynasi
+            </h1>
+            {currentSession?.id && (
+              <div className="flex items-center gap-2 text-xs font-medium text-emerald-600 bg-emerald-500/10 px-2 py-1 rounded-md w-fit">
+                <Clock className="h-3 w-3" />
+                Smena ochiq: {new Date(currentSession.openedAt).toLocaleTimeString('uz-UZ')}
+              </div>
+            )}
           </div>
 
-          {/* Instant Auto-Checkout Switch for Scanner */}
-          <button
-            type="button"
-            onClick={() => setAutoCheckoutOnScan(!autoCheckoutOnScan)}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all ${
-              autoCheckoutOnScan
-                ? "bg-amber-500/10 text-amber-600 border-amber-500/30 shadow-sm"
-                : "bg-muted text-muted-foreground border-border hover:bg-muted/80"
-            }`}
-          >
-            <Zap className={`h-4 w-4 ${autoCheckoutOnScan ? "text-amber-500 fill-amber-500" : ""}`} />
-            <span>Skanerda 1-Klik Sotish: {autoCheckoutOnScan ? "YONIQ" : "O'CHIQ"}</span>
-          </button>
+          <div className="flex flex-col sm:flex-row gap-3">
+            {currentSession?.id && (
+              <button
+                onClick={() => {
+                  setIsClosingSession(true);
+                  setIsSessionModalOpen(true);
+                }}
+                className="px-4 py-2 bg-red-500/10 text-red-600 font-semibold rounded-xl flex items-center justify-center gap-2 hover:bg-red-500/20 transition-colors border border-red-500/20 shadow-sm"
+              >
+                <LogOut className="h-4 w-4" />
+                Smenani Yopish
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setAutoCheckoutOnScan(!autoCheckoutOnScan)}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                autoCheckoutOnScan
+                  ? "bg-amber-500/10 text-amber-600 border-amber-500/30 shadow-sm"
+                  : "bg-muted text-muted-foreground border-border hover:bg-muted/80"
+              }`}
+            >
+              <Zap className={`h-4 w-4 ${autoCheckoutOnScan ? "text-amber-500 fill-amber-500" : ""}`} />
+              <span>Skanerda 1-Klik Sotish: {autoCheckoutOnScan ? "YONIQ" : "O'CHIQ"}</span>
+            </button>
+          </div>
         </div>
         
         <div className="relative mb-6 flex gap-2">
@@ -297,8 +392,27 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto pr-1 pb-10 md:pb-0 flex flex-col justify-between">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="flex-1 bg-card border-r border-border overflow-y-auto flex flex-col relative">
+          {(!currentSession || currentSession.status === 'CLOSED') && (
+            <div className="absolute inset-0 z-50 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
+              <div className="bg-card p-8 rounded-2xl shadow-xl border border-border max-w-sm w-full">
+                <Lock className="h-16 w-16 text-muted-foreground mx-auto mb-6 opacity-50" />
+                <h2 className="text-2xl font-bold mb-2">Smena Yopiq</h2>
+                <p className="text-muted-foreground text-sm mb-8">Savdo qilish uchun avval smenani ochishingiz kerak.</p>
+                <button
+                  onClick={() => {
+                    setIsClosingSession(false);
+                    setIsSessionModalOpen(true);
+                  }}
+                  className="w-full bg-primary text-primary-foreground font-semibold py-3 rounded-xl hover:bg-primary/90 transition-colors shadow-md"
+                >
+                  Smenani Ochish
+                </button>
+              </div>
+            </div>
+          )}
+          
+          <div className="p-4 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 pb-24">
             {paginatedMedicines.map((med: any) => {
               const qtyRemaining = med.inventory?.[0]?.quantity ?? 0;
               return (
@@ -336,7 +450,7 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
           </div>
 
           {/* POS Pagination Bar */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 mt-4 border-t border-border">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 mt-4 border-t border-border p-4">
             <span className="text-xs text-muted-foreground font-medium">
               Ko&apos;rsatildi: {paginatedMedicines.length} ta (Jami {filteredMedicines.length} ta dori)
             </span>
@@ -520,6 +634,85 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
           onClose={() => setIsMobileScannerOpen(false)}
         />
       )}
+
+      {/* Session Modal */}
+      {isSessionModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+          <div className="bg-card w-full max-w-md rounded-2xl shadow-2xl border border-border p-6 relative">
+            <button
+              onClick={() => setIsSessionModalOpen(false)}
+              className="absolute top-4 right-4 p-2 bg-muted/50 text-muted-foreground rounded-full hover:bg-muted hover:text-foreground transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <h2 className="text-2xl font-bold mb-6">
+              {isClosingSession ? 'Smenani Yopish (Z-Otchyot)' : 'Smenani Ochish'}
+            </h2>
+            
+            {isClosingSession ? (
+              <div className="space-y-4">
+                <div className="bg-muted p-4 rounded-xl space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Ochilgan vaqt:</span>
+                    <span className="font-medium">{new Date(currentSession.openedAt).toLocaleString('uz-UZ')}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Kassadagi boshlang'ich pul:</span>
+                    <span className="font-medium">{currentSession.startingCash.toLocaleString()} UZS</span>
+                  </div>
+                  <div className="flex justify-between text-emerald-600 font-bold border-t border-border/50 pt-2 mt-2">
+                    <span>Kassada bo'lishi kerak bo'lgan pul (Kutilyotgan):</span>
+                    <span>
+                      {(() => {
+                        const cashSales = currentSession.sales?.filter((s: any) => s.paymentMethod === 'CASH').reduce((sum: number, s: any) => sum + s.totalAmount, 0) || 0;
+                        return (currentSession.startingCash + cashSales).toLocaleString() + ' UZS';
+                      })()}
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold mb-2">Haqiqatda kassadagi pul (UZS)</label>
+                  <input
+                    type="number"
+                    value={closingCash}
+                    onChange={(e) => setClosingCash(e.target.value)}
+                    className="w-full p-3 border border-border rounded-xl bg-background focus:ring-2 focus:ring-primary/50 outline-none"
+                    placeholder="Qo'lingizdagi naqd pulni yozing..."
+                  />
+                </div>
+                
+                <button
+                  onClick={handleCloseSession}
+                  className="w-full mt-4 bg-red-600 text-white font-bold py-3.5 rounded-xl hover:bg-red-700 transition-colors shadow-lg"
+                >
+                  Smenani Yopish va Xisobotni Saqlash
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold mb-2">Boshlang'ich kassadagi pul (UZS)</label>
+                  <input
+                    type="number"
+                    value={startingCash}
+                    onChange={(e) => setStartingCash(e.target.value)}
+                    className="w-full p-3 border border-border rounded-xl bg-background focus:ring-2 focus:ring-primary/50 outline-none"
+                    placeholder="Ertalabki qoldiq pul..."
+                  />
+                </div>
+                <button
+                  onClick={handleOpenSession}
+                  className="w-full mt-4 bg-primary text-primary-foreground font-bold py-3.5 rounded-xl hover:bg-primary/90 transition-colors shadow-lg"
+                >
+                  Smenani Ochish va Savdoni Boshlash
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

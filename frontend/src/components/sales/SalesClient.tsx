@@ -21,7 +21,7 @@ export default function SalesClient({ initialSales }: { initialSales: any[] }) {
     await mutate();
   };
 
-  const filteredSales = sales.filter(sale => 
+  const filteredSales = sales.filter((sale: any) => 
     sale.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
     sale.paymentMethod.toLowerCase().includes(searchQuery.toLowerCase()) ||
     sale.items?.some((i: any) => i.medicine?.name?.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -71,7 +71,7 @@ export default function SalesClient({ initialSales }: { initialSales: any[] }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filteredSales.map((sale) => (
+              {filteredSales.map((sale: any) => (
                 <tr key={sale.id} className="hover:bg-muted/30 transition-colors">
                   <td className="px-6 py-4 font-mono text-xs text-muted-foreground">{sale.id.slice(0, 8)}...</td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -122,7 +122,7 @@ export default function SalesClient({ initialSales }: { initialSales: any[] }) {
               {t('salesHistory.noData')}
             </div>
           ) : (
-            filteredSales.map((sale) => {
+            filteredSales.map((sale: any) => {
               const totalQty = sale.items?.reduce((sum: number, item: any) => sum + item.quantity, 0) || 0;
               const itemsList = sale.items?.map((item: any) => item.medicine?.name).filter(Boolean).join(', ') || 'Dorilar';
               return (

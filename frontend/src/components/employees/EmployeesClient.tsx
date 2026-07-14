@@ -150,7 +150,7 @@ export default function EmployeesClient() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {employees.map(emp => (
+                  {employees.map((emp: any) => (
                     <tr key={emp.id} className="hover:bg-muted/30 transition-colors">
                       <td className="p-4 font-medium">{emp.fullName}</td>
                       <td className="p-4 text-muted-foreground">{emp.position || "—"}</td>
@@ -175,8 +175,8 @@ export default function EmployeesClient() {
             </div>
 
             {/* Mobile Card List View */}
-            <div className="block md:hidden divide-y divide-border overflow-y-auto max-h-[60vh]">
-              {employees.map(emp => (
+            <div className="block md:hidden divide-y divide-border overflow-y-auto max-h-[calc(100vh-280px)]">
+              {employees.map((emp: any) => (
                 <div key={emp.id} className="p-4 space-y-3 hover:bg-muted/10 transition-colors">
                   <div className="flex items-start justify-between gap-2">
                     <div>

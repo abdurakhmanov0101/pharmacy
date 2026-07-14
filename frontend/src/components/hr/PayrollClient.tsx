@@ -99,9 +99,11 @@ export default function PayrollClient() {
 
   const totalPaid = payrolls.reduce((sum, p) => sum + (p.netSalary || 0), 0);
 
-  const filteredPayrolls = payrolls.filter(p =>
-    p.employee?.fullName?.toLowerCase().includes(search.toLowerCase()) ||
-    p.notes?.toLowerCase().includes(search.toLowerCase())
+  const currentMonthStr = mounted ? new Date().toISOString().slice(0, 7) : "2026-07";
+
+  const filteredEmployees = employees.filter(emp =>
+    emp.fullName?.toLowerCase().includes(search.toLowerCase()) ||
+    emp.position?.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -153,7 +155,7 @@ export default function PayrollClient() {
 
         <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-muted-foreground font-medium">Bu Oy</span>
+            <span className="text-sm text-muted-foreground font-medium">Joriy To&apos;lov Davri</span>
             <div className="p-2 bg-purple-500/10 text-purple-600 rounded-lg">
               <Calendar className="h-5 w-5" />
             </div>
@@ -161,7 +163,7 @@ export default function PayrollClient() {
           <p className="text-2xl font-bold text-foreground">
             {mounted ? new Date().toLocaleDateString('uz-UZ', { month: 'long', year: 'numeric' }) : "Iyul, 2026"}
           </p>
-          <p className="text-xs text-muted-foreground mt-1">Avtomatik kassa integratsiyasi faol</p>
+          <p className="text-xs text-muted-foreground mt-1">Hozirgi hisobot oyi</p>
         </div>
       </div>
 
@@ -182,92 +184,144 @@ export default function PayrollClient() {
       <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-muted-foreground">Yuklanmoqda...</div>
-        ) : filteredPayrolls.length === 0 ? (
+        ) : filteredEmployees.length === 0 ? (
           <div className="p-12 text-center text-muted-foreground">
-            <CreditCard className="h-12 w-12 mx-auto mb-3 opacity-20" />
-            Hali oylik yoki avans to&apos;lovlari qayd etilmagan. Yuqoridagi tugma orqali to&apos;lov amalga oshiring.
+            <UserCheck className="h-12 w-12 mx-auto mb-3 opacity-20" />
+            Bunday xodim topilmadi.
           </div>
         ) : (
           <>
             {/* Desktop Table View */}
-            <div className="hidden md:block overflow-x-auto">
+            <div className="hidden md:block overflow-x-auto min-h-[400px]">
               <table className="w-full text-sm text-left">
-                <thead className="bg-muted/50 text-muted-foreground text-xs uppercase font-semibold border-b border-border">
+                <thead className="text-xs text-muted-foreground uppercase bg-muted/40 sticky top-0 z-10 backdrop-blur-md">
                   <tr>
-                    <th className="p-4 font-medium">Xodim F.I.SH.</th>
-                    <th className="p-4 font-medium">Lavozim</th>
-                    <th className="p-4 font-medium">Hisobot oyi</th>
-                    <th className="p-4 font-medium">To&apos;lov turi / Izoh</th>
-                    <th className="p-4 font-medium">Summa (UZS)</th>
-                    <th className="p-4 font-medium">Holati</th>
-                    <th className="p-4 font-medium text-right">Sana</th>
+                    <th className="px-6 py-4 font-semibold">Xodim F.I.SH.</th>
+                    <th className="px-6 py-4 font-semibold">Lavozim</th>
+                    <th className="px-6 py-4 font-semibold">Asosiy Maosh</th>
+                    <th className="px-6 py-4 font-semibold">To&apos;landi (Bu oy)</th>
+                    <th className="px-6 py-4 font-semibold">Qoldiq</th>
+                    <th className="px-6 py-4 font-semibold">Holati</th>
+                    <th className="px-6 py-4 font-semibold text-right">Amal</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {filteredPayrolls.map((p) => (
-                    <tr key={p.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="p-4 font-medium text-foreground">{p.employee?.fullName || "—"}</td>
-                      <td className="p-4 text-muted-foreground">{p.employee?.position || "Xodim"}</td>
-                      <td className="p-4 font-mono text-xs">{p.month}</td>
-                      <td className="p-4 text-muted-foreground">
-                        <span className="inline-block px-2 py-0.5 rounded text-xs bg-muted font-medium">
-                          {p.notes || "Oylik to'lov"}
-                        </span>
-                      </td>
-                      <td className="p-4 font-bold text-emerald-600">
-                        {p.netSalary?.toLocaleString()} so&apos;m
-                      </td>
-                      <td className="p-4">
-                        <span className="inline-flex items-center gap-1.5 text-xs bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 px-2.5 py-1 rounded-full font-medium">
-                          <CheckCircle2 className="h-3.5 w-3.5" /> To&apos;langan
-                        </span>
-                      </td>
-                      <td className="p-4 text-right text-muted-foreground text-xs font-mono">
-                        {p.createdAt ? String(p.createdAt).slice(0, 10) : "—"}
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredEmployees.map((emp) => {
+                    const employeePayments = payrolls.filter((p: any) => p.employeeId === emp.id && p.month === currentMonthStr);
+                    const paidThisMonth = employeePayments.reduce((sum: number, p: any) => sum + (p.netSalary || 0), 0);
+                    const remaining = Math.max(0, (emp.salary || 0) - paidThisMonth);
+                    const isFullyPaid = paidThisMonth >= (emp.salary || 0) && (emp.salary || 0) > 0;
+                    
+                    return (
+                      <tr key={emp.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="px-6 py-4 font-medium text-foreground">
+                          <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold shadow-sm">
+                              {(emp.fullName || "X").charAt(0).toUpperCase()}
+                            </div>
+                            {emp.fullName || "—"}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-muted-foreground">{emp.position || "Xodim"}</td>
+                        <td className="px-6 py-4 font-mono text-xs">
+                          <span className="bg-muted px-2 py-1 rounded-md font-bold text-foreground">
+                            {emp.salary?.toLocaleString().replace(/,/g, ' ')} UZS
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 font-bold text-blue-600">
+                          {paidThisMonth > 0 ? `${paidThisMonth.toLocaleString().replace(/,/g, ' ')} UZS` : "0 UZS"}
+                        </td>
+                        <td className="px-6 py-4 font-bold text-red-500">
+                          {remaining > 0 ? `${remaining.toLocaleString().replace(/,/g, ' ')} UZS` : "0 UZS"}
+                        </td>
+                        <td className="px-6 py-4">
+                          {isFullyPaid ? (
+                            <span className="inline-flex items-center gap-1.5 text-xs bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 px-3 py-1 rounded-full font-medium">
+                              <CheckCircle2 className="h-3.5 w-3.5" /> To&apos;liq to&apos;langan
+                            </span>
+                          ) : paidThisMonth > 0 ? (
+                            <span className="inline-flex items-center gap-1.5 text-xs bg-amber-500/10 text-amber-600 border border-amber-500/20 px-3 py-1 rounded-full font-medium">
+                              Qisman to&apos;langan
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 text-xs bg-red-500/10 text-red-600 border border-red-500/20 px-3 py-1 rounded-full font-medium">
+                              To&apos;lanmagan
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <button 
+                            onClick={() => {
+                              setFormData({ ...formData, employeeId: emp.id });
+                              setIsModalOpen(true);
+                            }}
+                            className="px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary/20 rounded-lg text-xs font-semibold transition-colors"
+                          >
+                            To&apos;lash
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
 
             {/* Mobile Card List View */}
-            <div className="block md:hidden divide-y divide-border overflow-y-auto max-h-[60vh]">
-              {filteredPayrolls.map((p) => (
-                <div key={p.id} className="p-4 space-y-3 hover:bg-muted/10 transition-colors">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <h4 className="font-semibold text-foreground text-sm">{p.employee?.fullName || "—"}</h4>
-                      <p className="text-xs text-muted-foreground mt-0.5">{p.employee?.position || "Xodim"}</p>
-                    </div>
-                    <span className="inline-flex items-center gap-1.5 text-[10px] bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 px-2 py-0.5 rounded-full font-medium shrink-0">
-                      To'langan
-                    </span>
-                  </div>
+            <div className="block md:hidden divide-y divide-border overflow-y-auto max-h-[calc(100vh-280px)]">
+              {filteredEmployees.map((emp) => {
+                const employeePayments = payrolls.filter((p: any) => p.employeeId === emp.id && p.month === currentMonthStr);
+                const paidThisMonth = employeePayments.reduce((sum: number, p: any) => sum + (p.netSalary || 0), 0);
+                const isFullyPaid = paidThisMonth >= (emp.salary || 0) && (emp.salary || 0) > 0;
 
-                  <div className="grid grid-cols-2 gap-2 text-[11px] sm:text-xs">
-                    <div>
-                      <p className="text-muted-foreground">Hisobot oyi</p>
-                      <p className="font-mono text-foreground">{p.month}</p>
+                return (
+                  <div key={emp.id} className="p-4 space-y-3 hover:bg-muted/10 transition-colors">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+                          {(emp.fullName || "X").charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-foreground text-sm">{emp.fullName || "—"}</h4>
+                          <p className="text-xs text-muted-foreground mt-0.5">{emp.position || "Xodim"}</p>
+                        </div>
+                      </div>
+                      {isFullyPaid ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded-full font-medium">
+                          To&apos;langan
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[10px] bg-amber-500/10 text-amber-600 px-2 py-0.5 rounded-full font-medium">
+                          Qarzdorlik
+                        </span>
+                      )}
                     </div>
-                    <div>
-                      <p className="text-muted-foreground">To'langan sana</p>
-                      <p className="font-mono text-foreground">
-                        {p.createdAt ? String(p.createdAt).slice(0, 10) : "—"}
-                      </p>
-                    </div>
-                  </div>
 
-                  <div className="flex items-center justify-between pt-2 border-t border-border/50">
-                    <span className="inline-block px-2 py-0.5 rounded text-[10px] bg-muted font-medium text-muted-foreground max-w-[150px] truncate">
-                      {p.notes || "Oylik to'lov"}
-                    </span>
-                    <p className="font-bold text-emerald-600 text-sm">
-                      {p.netSalary?.toLocaleString()} so'm
-                    </p>
+                    <div className="grid grid-cols-2 gap-2 text-[11px] sm:text-xs bg-muted/30 p-2 rounded-lg">
+                      <div>
+                        <p className="text-muted-foreground">Asosiy maosh</p>
+                        <p className="font-bold text-foreground">{emp.salary?.toLocaleString()} UZS</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Bu oy to&apos;landi</p>
+                        <p className="font-bold text-blue-600">{paidThisMonth.toLocaleString()} UZS</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                      <button 
+                        onClick={() => {
+                          setFormData({ ...formData, employeeId: emp.id });
+                          setIsModalOpen(true);
+                        }}
+                        className="w-full py-2 bg-primary/10 text-primary hover:bg-primary/20 rounded-lg text-xs font-semibold transition-colors"
+                      >
+                        Pul ajratish
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </>
         )}

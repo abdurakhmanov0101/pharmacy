@@ -68,6 +68,30 @@ export class ReportsService {
       }),
     );
 
+    // Dead Stock calculation
+    const soldMedicinesAll = await this.prisma.saleItem.groupBy({
+      by: ['medicineId'],
+      where: { sale: { createdAt: { gte: start, lte: end } } }
+    });
+    const soldMedicineIds = soldMedicinesAll.map(s => s.medicineId);
+
+    const deadMedicinesData = await this.prisma.inventory.findMany({
+      where: {
+        quantity: { gt: 0 },
+        ...(soldMedicineIds.length > 0 ? { medicineId: { notIn: soldMedicineIds } } : {})
+      },
+      include: { medicine: { include: { category: true } } },
+      take: 15,
+      orderBy: { quantity: 'desc' }
+    });
+
+    const deadMedicines = deadMedicinesData.map(inv => ({
+      medicineId: inv.medicineId,
+      name: inv.medicine.name,
+      categoryName: inv.medicine.category?.name || 'Kategoriyasiz',
+      stockQuantity: inv.quantity,
+    }));
+
     return {
       period,
       startDate: start,
@@ -76,6 +100,7 @@ export class ReportsService {
       totalSales: salesCount,
       averageSale: salesCount > 0 ? (salesAgg._sum.totalAmount || 0) / salesCount : 0,
       topMedicines: topMedicinesWithNames,
+      deadMedicines,
     };
   }
 

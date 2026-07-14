@@ -78,7 +78,8 @@ export default function CustomersClient() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-x-auto">
+        {/* Desktop Table View */}
+        <div className="hidden md:block flex-1 overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-muted-foreground uppercase bg-muted/40 sticky top-0 z-10 backdrop-blur-md">
               <tr>
@@ -103,7 +104,7 @@ export default function CustomersClient() {
                 filteredCustomers.map((c: any) => (
                   <tr key={c.id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-6 py-4 font-medium text-foreground">
-                      <div className="flex items-center gap-3">
+                       <div className="flex items-center gap-3">
                         <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
                           {c.name.charAt(0).toUpperCase()}
                         </div>
@@ -133,6 +134,53 @@ export default function CustomersClient() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Card List View */}
+        <div className="block md:hidden divide-y divide-border overflow-y-auto max-h-[60vh]">
+          {isValidating && customers.length === 0 ? (
+            <div className="p-6 text-center text-muted-foreground">Yuklanmoqda...</div>
+          ) : filteredCustomers.length === 0 ? (
+            <div className="p-6 text-center text-muted-foreground">
+              Mijozlar topilmadi
+            </div>
+          ) : (
+            filteredCustomers.map((c: any) => (
+              <div key={c.id} className="p-4 space-y-3 hover:bg-muted/10 transition-colors">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
+                      {c.name.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="font-semibold text-foreground text-sm">{c.name}</span>
+                  </div>
+                  <div className="flex items-center gap-1 font-bold text-xs text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-full shrink-0">
+                    <Award className="h-3.5 w-3.5" /> {c.loyaltyPoints} ball
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <p className="text-muted-foreground">Telefon</p>
+                    <p className="font-medium text-foreground flex items-center gap-1 mt-0.5">
+                      <Phone className="h-3.5 w-3.5" /> {c.phone || "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Xaridlar soni</p>
+                    <p className="font-medium text-foreground flex items-center gap-1 mt-0.5">
+                      <ShoppingBag className="h-3.5 w-3.5" /> {c._count?.sales || 0} ta
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center pt-2 border-t border-border/50 text-[10px] text-muted-foreground">
+                  <span>Qo'shilgan sana</span>
+                  <span>{new Date(c.createdAt).toLocaleDateString('uz-UZ')}</span>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 

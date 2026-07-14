@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Package, Search, Plus, Store, X, ArrowDownLeft, CheckCircle2, Printer } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 import BarcodePrinter from "./BarcodePrinter";
@@ -62,7 +62,8 @@ export function InventoryClient() {
       price: "",
       quantity: "10",
       expiryDate: "",
-      batchNumber: ""
+      batchNumber: "",
+      barcode: ""
     });
     setIsModalOpen(true);
   };
@@ -131,15 +132,19 @@ export function InventoryClient() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
 
-  const filteredInventory = inventory.filter(inv => 
-    inv.medicine?.name?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredInventory = useMemo(() => {
+    return inventory.filter((inv: any) => 
+      inv.medicine?.name?.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [inventory, search]);
 
   const totalPages = Math.ceil(filteredInventory.length / itemsPerPage) || 1;
-  const paginatedInventory = filteredInventory.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const paginatedInventory = useMemo(() => {
+    return filteredInventory.slice(
+      (currentPage - 1) * itemsPerPage,
+      currentPage * itemsPerPage
+    );
+  }, [filteredInventory, currentPage, itemsPerPage]);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearch(e.target.value);
@@ -201,7 +206,7 @@ export function InventoryClient() {
                   </td>
                 </tr>
               ) : (
-                paginatedInventory.map((item) => (
+                paginatedInventory.map((item: any) => (
                   <tr key={item.id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-6 py-4 font-medium text-foreground">{item.medicine.name}</td>
                     <td className="px-6 py-4 text-muted-foreground">{item.medicine.category?.name || '-'}</td>
@@ -247,7 +252,7 @@ export function InventoryClient() {
               Omborda hozircha tovarlar yo&apos;q
             </div>
           ) : (
-            paginatedInventory.map((item) => (
+            paginatedInventory.map((item: any) => (
               <div key={item.id} className="p-4 space-y-3 hover:bg-muted/10 transition-colors">
                 <div className="flex items-start justify-between gap-2">
                   <div>

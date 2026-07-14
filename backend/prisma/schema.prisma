@@ -22,6 +22,7 @@ model User {
   branch    Branch?   @relation(fields: [branchId], references: [id])
   sales     Sale[]
   auditLogs AuditLog[]
+  cashierSessions CashierSession[]
 }
 
 model Role {
@@ -52,6 +53,7 @@ model Branch {
   sales     Sale[]
   inventory Inventory[]
   purchases PurchaseOrder[]
+  cashierSessions CashierSession[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -115,6 +117,8 @@ model Inventory {
   updatedAt   DateTime @updatedAt
 
   @@unique([medicineId, branchId, batchNumber])
+  @@index([medicineId])
+  @@index([branchId])
 }
 
 model InventoryTransaction {
@@ -156,19 +160,24 @@ model Sale {
   id            String   @id @default(uuid())
   branchId      String
   userId        String
-  customerId    String?
-  totalAmount   Float
-  paymentMethod String   // e.g., "CASH", "CARD", "QR"
-  status        String   @default("COMPLETED")
+  customerId       String?
+  cashierSessionId String?
+  totalAmount      Float
+  paymentMethod    String   // e.g., "CASH", "CARD", "QR"
+  status           String   @default("COMPLETED")
 
-  branch        Branch   @relation(fields: [branchId], references: [id])
-  user          User     @relation(fields: [userId], references: [id])
-  customer      Customer? @relation(fields: [customerId], references: [id])
+  branch           Branch   @relation(fields: [branchId], references: [id])
+  user             User     @relation(fields: [userId], references: [id])
+  customer         Customer? @relation(fields: [customerId], references: [id])
+  cashierSession   CashierSession? @relation(fields: [cashierSessionId], references: [id])
   items         SaleItem[]
   payments      Payment[]
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  @@index([createdAt])
+  @@index([branchId])
 }
 
 model SaleItem {
@@ -181,6 +190,9 @@ model SaleItem {
 
   sale       Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
   medicine   Medicine @relation(fields: [medicineId], references: [id])
+
+  @@index([saleId])
+  @@index([medicineId])
 }
 
 model Payment {
@@ -341,4 +353,26 @@ model Expense {
   notes       String?
   date        DateTime @default(now())
   createdAt   DateTime @default(now())
+}
+
+model CashierSession {
+  id             String    @id @default(uuid())
+  userId         String
+  branchId       String
+  openedAt       DateTime  @default(now())
+  closedAt       DateTime?
+  startingCash   Float     @default(0)
+  closingCash    Float?
+  expectedCash   Float?
+  status         String    @default("OPEN") // OPEN, CLOSED
+  notes          String?
+
+  user           User      @relation(fields: [userId], references: [id])
+  branch         Branch    @relation(fields: [branchId], references: [id])
+  sales          Sale[]
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([userId, status])
 }

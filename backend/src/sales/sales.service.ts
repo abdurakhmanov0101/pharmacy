@@ -38,11 +38,21 @@ export class SalesService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      const currentSession = await tx.cashierSession.findFirst({
+        where: { userId: user.id, status: 'OPEN' },
+        orderBy: { openedAt: 'desc' },
+      });
+
+      if (!currentSession) {
+        throw new HttpException('Smena ochilmagan! Iltimos savdoni boshlash uchun smenani oching.', HttpStatus.BAD_REQUEST);
+      }
+
       // 1. Create Sale and SaleItems
       const sale = await tx.sale.create({
         data: {
           branchId: branch.id,
           userId: user.id,
+          cashierSessionId: currentSession.id,
           totalAmount,
           paymentMethod,
           items: {
