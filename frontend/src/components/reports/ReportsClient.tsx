@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import useSWR from "swr";
 import { BarChart3, TrendingUp, ShoppingCart, Award, DollarSign, AlertTriangle, PackageX } from "lucide-react";
 import {
   AreaChart,
@@ -58,10 +59,17 @@ export default function ReportsClient({
   topMedicines: TopMedicine[] | null;
 }) {
   const [activePeriod, setActivePeriod] = useState<"daily" | "weekly" | "monthly" | "custom">("monthly");
+  const [activeTab, setActiveTab] = useState<"sales" | "write_offs">("sales");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
   const [customData, setCustomData] = useState<ReportData | null>(null);
   const [isLoadingCustom, setIsLoadingCustom] = useState(false);
+
+  // SWR for write offs
+  const { data: writeOffData, isLoading: isWriteOffsLoading } = useSWR(
+    activeTab === "write_offs" ? "http://localhost:3001/api/reports/write-offs" : null,
+    (url) => fetch(url).then(r => r.json())
+  );
 
   const fetchCustomData = async () => {
     if (!customStart || !customEnd) return;
@@ -99,26 +107,51 @@ export default function ReportsClient({
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">Sotuv tahlili va statistika</p>
         </div>
-        {/* Period Switcher */}
-        <div className="flex bg-muted rounded-lg p-1 gap-1 flex-wrap">
-          {(["daily", "weekly", "monthly", "custom"] as const).map((p) => (
-            <button
-              key={p}
-              onClick={() => setActivePeriod(p)}
-              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-                activePeriod === p ? "bg-card shadow text-foreground" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {periodLabels[p]}
-            </button>
-          ))}
+        
+        {/* Main Tabs */}
+        <div className="flex bg-muted rounded-lg p-1 gap-1">
+          <button
+            onClick={() => setActiveTab("sales")}
+            className={`px-6 py-2 rounded-md text-sm font-bold transition-all ${
+              activeTab === "sales" ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Sotuvlar
+          </button>
+          <button
+            onClick={() => setActiveTab("write_offs")}
+            className={`px-6 py-2 rounded-md text-sm font-bold transition-all flex items-center gap-2 ${
+              activeTab === "write_offs" ? "bg-red-600 text-white shadow" : "text-red-500 hover:text-red-600"
+            }`}
+          >
+            <AlertTriangle className="w-4 h-4" /> Spisaniya
+          </button>
         </div>
       </div>
 
-      {activePeriod === "custom" && (
-        <div className="flex flex-wrap items-end gap-4 bg-card border border-border p-4 rounded-xl shadow-sm">
-          <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1">Boshlanish sanasi</label>
+      {activeTab === "sales" ? (
+        <>
+          <div className="flex items-center justify-end">
+            {/* Period Switcher */}
+          <div className="flex bg-muted rounded-lg p-1 gap-1 flex-wrap">
+            {(["daily", "weekly", "monthly", "custom"] as const).map((p) => (
+              <button
+                key={p}
+                onClick={() => setActivePeriod(p)}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                  activePeriod === p ? "bg-card shadow text-foreground" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {periodLabels[p]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {activePeriod === "custom" && (
+          <div className="flex flex-wrap items-end gap-4 bg-card border border-border p-4 rounded-xl shadow-sm">
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Boshlanish sanasi</label>
             <input type="date" className="p-2 border rounded-md bg-background text-sm focus:ring-2 focus:ring-primary/50 outline-none" value={customStart} onChange={(e) => setCustomStart(e.target.value)} />
           </div>
           <div>
@@ -366,7 +399,126 @@ export default function ReportsClient({
             <p className="text-xs">Omborda yotib qolgan dorilar topilmadi.</p>
           </div>
         )}
-      </div>
+        </div>
+        </>
+      ) : (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {isWriteOffsLoading ? (
+            <p className="text-muted-foreground">Yuklanmoqda...</p>
+          ) : writeOffData ? (
+            <>
+              {/* WriteOff Summary Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <SummaryCard
+                  icon={<PackageX className="h-5 w-5 text-red-500" />}
+                  title="Jami hisobdan chiqarilgan dori (dona)"
+                  value={<><AnimatedNumber value={writeOffData.totalItemsWrittenOff} /> dona</>}
+                />
+                <SummaryCard
+                  icon={<DollarSign className="h-5 w-5 text-red-500" />}
+                  title="Jami ko'rilgan zarar (UZS)"
+                  value={<><AnimatedNumber value={writeOffData.totalLostValue} /> so'm</>}
+                />
+              </div>
+
+              {/* Reasons Stats */}
+              <div className="bg-card border border-red-500/20 rounded-2xl p-6 shadow-sm overflow-hidden">
+                <h3 className="text-lg font-bold flex items-center gap-2 mb-4 text-red-600">
+                  <AlertTriangle className="h-5 w-5" />
+                  Zarar sabablari bo'yicha tahlil
+                </h3>
+                {writeOffData.reasonsStats.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={writeOffData.reasonsStats}
+                            dataKey="quantity"
+                            nameKey="reason"
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={80}
+                            paddingAngle={5}
+                            labelLine={false}
+                          >
+                            {writeOffData.reasonsStats.map((entry: any, index: number) => (
+                              <Cell key={`cell-${index}`} fill={['#ef4444', '#f97316', '#eab308', '#64748b'][index % 4]} />
+                            ))}
+                          </Pie>
+                          <RechartsTooltip formatter={(value: any) => [`${value} dona`, 'Miqdor']} />
+                          <Legend />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="space-y-4">
+                      {writeOffData.reasonsStats.map((stat: any, idx: number) => (
+                        <div key={idx} className="flex items-center justify-between p-3 bg-red-50/50 rounded-xl border border-red-100">
+                          <span className="font-medium text-sm text-red-900">{stat.reason}</span>
+                          <div className="text-right">
+                            <span className="block font-bold text-red-600">{stat.quantity} dona</span>
+                            <span className="text-xs text-red-400">{stat.percentage}%</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground text-sm">Spisaniya ma'lumotlari yo'q</p>
+                )}
+              </div>
+
+              {/* Recent WriteOffs Table */}
+              <div className="bg-card border border-border rounded-2xl p-0 overflow-hidden shadow-sm">
+                <div className="p-4 sm:p-6 border-b border-border bg-red-50/30">
+                  <h3 className="text-lg font-bold flex items-center gap-2 text-red-600">
+                    <PackageX className="h-5 w-5" />
+                    Oxirgi hisobdan chiqarilgan dorilar
+                  </h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead className="text-xs text-muted-foreground bg-muted/30 uppercase border-b border-border">
+                      <tr>
+                        <th className="px-6 py-4 font-semibold">Sana</th>
+                        <th className="px-6 py-4 font-semibold">Dori nomi</th>
+                        <th className="px-6 py-4 font-semibold">Filial</th>
+                        <th className="px-6 py-4 font-semibold text-center">Miqdor</th>
+                        <th className="px-6 py-4 font-semibold">Sabab</th>
+                        <th className="px-6 py-4 font-semibold text-right">Zarar summasi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/50">
+                      {writeOffData.recentWriteOffs.map((wo: any) => (
+                        <tr key={wo.id} className="hover:bg-muted/30 transition-colors">
+                          <td className="px-6 py-4 whitespace-nowrap text-muted-foreground">{new Date(wo.date).toLocaleString('uz-UZ')}</td>
+                          <td className="px-6 py-4 font-medium">{wo.medicineName}</td>
+                          <td className="px-6 py-4 text-muted-foreground">{wo.branchName}</td>
+                          <td className="px-6 py-4 text-center">
+                            <span className="px-2.5 py-1 rounded-md bg-red-100 text-red-700 font-bold">{wo.quantity}</span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="px-2 py-1 rounded-md bg-orange-100 text-orange-700 text-xs font-semibold">{wo.reason}</span>
+                          </td>
+                          <td className="px-6 py-4 text-right font-bold text-red-600">
+                            {wo.lostValue.toLocaleString()} so'm
+                          </td>
+                        </tr>
+                      ))}
+                      {writeOffData.recentWriteOffs.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">Hozircha hech qanday dori hisobdan chiqarilmagan.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          ) : null}
+        </div>
+      )}
 
     </div>
   );

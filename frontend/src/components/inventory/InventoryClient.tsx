@@ -43,7 +43,56 @@ export function InventoryClient() {
   });
   const [submitting, setSubmitting] = useState(false);
   const [printItem, setPrintItem] = useState<any>(null);
+  // Write-off State
+  const [isWriteOffModalOpen, setIsWriteOffModalOpen] = useState(false);
+  const [writeOffData, setWriteOffData] = useState({
+    medicineId: "",
+    medicineName: "",
+    quantity: "",
+    reason: "Yaroqlilik muddati o'tgan"
+  });
+  
+  const openWriteOffModal = (inv: any) => {
+    setWriteOffData({
+      medicineId: inv.medicineId,
+      medicineName: inv.medicine.name,
+      quantity: "",
+      reason: "Yaroqlilik muddati o'tgan"
+    });
+    setIsWriteOffModalOpen(true);
+  };
 
+  const handleWriteOffSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!writeOffData.quantity || Number(writeOffData.quantity) <= 0) {
+      alert("Yaroqsiz soni 0 dan katta bo'lishi kerak");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const payload = {
+        medicineId: writeOffData.medicineId,
+        quantity: Number(writeOffData.quantity),
+        reason: writeOffData.reason,
+        branchId: selectedBranchId
+      };
+      const res = await fetch("http://localhost:3001/api/inventory/write-off", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Hisobdan chiqarishda xatolik");
+      }
+      setIsWriteOffModalOpen(false);
+      fetchInventory();
+    } catch (err: any) {
+      alert(err.message || "Xatolik yuz berdi");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
 
   const openKirimModal = async () => {
@@ -233,7 +282,8 @@ export function InventoryClient() {
                       >
                         <Printer className="w-5 h-5" />
                       </button>
-                      <button onClick={openKirimModal} className="text-primary hover:underline text-xs font-medium">Kirim</button>
+                      <button onClick={openKirimModal} className="text-primary hover:underline text-xs font-medium mr-3">Kirim</button>
+                      <button onClick={() => openWriteOffModal(item)} className="text-red-500 hover:underline text-xs font-medium">Chiqim (Spisaniya)</button>
                     </td>
                   </tr>
                 ))
@@ -288,13 +338,20 @@ export function InventoryClient() {
                 </div>
 
                 <div className="flex items-center justify-end pt-2 border-t border-border/50">
-                  <button
-                    type="button"
-                    onClick={openKirimModal}
-                    className="px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary/20 rounded-lg text-xs font-semibold transition-colors"
-                  >
-                    Qo'shimcha kirim
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => openWriteOffModal(item)}
+                      className="px-3 py-1.5 bg-red-500/10 text-red-600 hover:bg-red-500/20 rounded-lg text-xs font-semibold transition-colors mr-2"
+                    >
+                      Spisaniya
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openKirimModal}
+                      className="px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary/20 rounded-lg text-xs font-semibold transition-colors"
+                    >
+                      Kirim
+                    </button>
                 </div>
               </div>
             ))
@@ -479,6 +536,77 @@ export function InventoryClient() {
           barcode={printItem.barcode} 
           onPrinted={() => setPrintItem(null)} 
         />
+      )}
+
+      {/* Write-off Modal */}
+      {isWriteOffModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-background rounded-xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-4 sm:p-6 border-b border-border flex items-center justify-between bg-red-50">
+              <h3 className="text-lg font-bold text-red-600">Yaroqsiz qilib chiqarish (Spisaniya)</h3>
+              <button onClick={() => setIsWriteOffModalOpen(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleWriteOffSubmit} className="p-4 sm:p-6 space-y-4 overflow-y-auto">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Dori nomi</label>
+                <input 
+                  type="text" 
+                  value={writeOffData.medicineName} 
+                  disabled
+                  className="w-full px-3 py-2 bg-muted/50 border border-border rounded-lg text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Chiqarilayotgan soni *</label>
+                <input 
+                  type="number" 
+                  required
+                  min="1"
+                  value={writeOffData.quantity} 
+                  onChange={e => setWriteOffData({...writeOffData, quantity: e.target.value})}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:ring-2 focus:ring-red-500/50 outline-none"
+                  placeholder="Masalan: 5"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Sababni tanlang *</label>
+                <select 
+                  required
+                  value={writeOffData.reason} 
+                  onChange={e => setWriteOffData({...writeOffData, reason: e.target.value})}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:ring-2 focus:ring-red-500/50 outline-none"
+                >
+                  <option value="Yaroqlilik muddati o'tgan">Yaroqlilik muddati o'tgan</option>
+                  <option value="Shikastlangan / Singan">Shikastlangan / Singan</option>
+                  <option value="Yo'qolgan / O'g'irlangan">Yo'qolgan / O'g'irlangan</option>
+                  <option value="Boshqa sabab">Boshqa sabab</option>
+                </select>
+              </div>
+              
+              <div className="pt-4 flex items-center justify-end gap-3 border-t border-border mt-6">
+                <button 
+                  type="button" 
+                  onClick={() => setIsWriteOffModalOpen(false)}
+                  className="px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted rounded-lg transition-colors"
+                >
+                  Bekor qilish
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={submitting}
+                  className="px-4 py-2 text-sm font-medium bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {submitting ? 'Saqlanmoqda...' : 'Hisobdan chiqarish'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

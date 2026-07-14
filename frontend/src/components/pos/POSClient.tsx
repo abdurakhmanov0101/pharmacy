@@ -38,6 +38,21 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
     { refreshInterval: 5000 }
   );
 
+  const { data: dailySales } = useSWR(
+    `http://localhost:3001/api/reports/daily`,
+    fetcher,
+    { refreshInterval: 10000 }
+  );
+
+  const { data: customersData = [] } = useSWR(
+    `http://localhost:3001/api/customers`,
+    fetcher
+  );
+
+  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+  const [usePoints, setUsePoints] = useState(false);
+  const [customerSearch, setCustomerSearch] = useState('');
+
   // Audio beep effect for barcode scanner
   const playBeep = () => {
     try {
@@ -197,7 +212,9 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
           unitPrice: item.price
         })),
         totalAmount,
-        paymentMethod
+        paymentMethod,
+        customerId: selectedCustomer?.id,
+        usePoints
       };
 
       if (paymentMethod === 'MIXED') {
@@ -220,6 +237,9 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
         alert(t('pos.successMessage') || "✅ Sotuv muvaffaqiyatli amalga oshdi va dorilar ombordan chegirildi!");
         setCart([]);
         setCashAmount('');
+        setSelectedCustomer(null);
+        setCustomerSearch('');
+        setUsePoints(false);
         setIsCheckoutModalOpen(false);
         mutateMedicines();
         mutateSession();
@@ -331,17 +351,26 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
       {/* Catalog Section */}
       <div className={`flex-1 flex flex-col h-full overflow-hidden ${activeMobileTab === 'catalog' ? 'flex' : 'hidden lg:flex'}`}>
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
-          <div className="flex flex-col gap-1">
-            <h1 className="text-xl sm:text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/60 tracking-tight">
-              Sotuv Oynasi
-            </h1>
-            {currentSession?.id && (
-              <div className="flex items-center gap-2 text-xs font-medium text-emerald-600 bg-emerald-500/10 px-2 py-1 rounded-md w-fit">
-                <Clock className="h-3 w-3" />
-                Smena ochiq: {new Date(currentSession.openedAt).toLocaleTimeString('uz-UZ')}
-              </div>
-            )}
-          </div>
+          <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-primary flex items-center gap-2">
+                Sotuv Oynasi
+              </h1>
+              {currentSession && currentSession.status === 'OPEN' && (
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 font-semibold text-[10px] sm:text-xs border border-emerald-500/20">
+                    <Clock className="h-3 w-3" /> Smena ochiq: {new Date(currentSession.openedAt).toLocaleTimeString('uz-UZ')}
+                  </span>
+                  {dailySales && (
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 font-semibold text-[10px] sm:text-xs border border-blue-500/20">
+                      <Banknote className="h-3 w-3" /> Bugungi tushum: {dailySales.totalRevenue?.toLocaleString()} UZS
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>            </div>
+            </div>
 
           <div className="flex flex-col sm:flex-row gap-3">
             {currentSession?.id && (
@@ -542,10 +571,57 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
               </button>
             </div>
 
-            <div className="p-6 space-y-6">
+            <div className="p-6 space-y-4">
+              
+              <div className="bg-muted/30 border border-border p-4 rounded-xl space-y-3">
+                <label className="block text-sm font-medium">Mijoz (Telefon raqam yoki Ism)</label>
+                <div className="relative">
+                  <input 
+                    type="text"
+                    value={customerSearch}
+                    onChange={(e) => setCustomerSearch(e.target.value)}
+                    placeholder="Mijoz qidirish..."
+                    className="w-full p-2 border border-border rounded-lg text-sm bg-background"
+                  />
+                  {customerSearch && !selectedCustomer && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-lg shadow-lg z-10 max-h-40 overflow-y-auto">
+                      {customersData.filter((c: any) => c.phone?.includes(customerSearch) || c.name.toLowerCase().includes(customerSearch.toLowerCase())).map((c: any) => (
+                        <div key={c.id} onClick={() => { setSelectedCustomer(c); setCustomerSearch(c.name); }} className="p-2 hover:bg-muted cursor-pointer text-sm">
+                          <span className="font-bold">{c.name}</span> - {c.phone} (Bonus: <span className="text-green-600">{c.loyaltyPoints}</span>)
+                        </div>
+                      ))}
+                      {customersData.filter((c: any) => c.phone?.includes(customerSearch) || c.name.toLowerCase().includes(customerSearch.toLowerCase())).length === 0 && (
+                        <div className="p-2 text-sm text-muted-foreground text-center">Mijoz topilmadi. Mijozlar sahifasidan qo'shing.</div>
+                      )}
+                    </div>
+                  )}
+                  {selectedCustomer && (
+                    <button onClick={() => { setSelectedCustomer(null); setCustomerSearch(''); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground">
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                {selectedCustomer && (
+                  <div className="flex items-center justify-between bg-green-50/50 p-2 border border-green-100 rounded-lg">
+                    <span className="text-sm font-semibold text-green-800">{selectedCustomer.name}</span>
+                    {selectedCustomer.loyaltyPoints > 0 && (
+                      <label className="text-xs font-bold text-green-700 flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={usePoints} onChange={(e) => setUsePoints(e.target.checked)} className="w-4 h-4 rounded text-green-600" />
+                        Bonus ishl. ({selectedCustomer.loyaltyPoints} UZS)
+                      </label>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <div>
                 <p className="text-sm text-muted-foreground mb-1">To&apos;lanadigan umumiy summa:</p>
-                <p className="text-3xl font-bold text-primary">{totalAmount.toLocaleString()} UZS</p>
+                <p className="text-3xl font-bold text-primary">
+                  {usePoints && selectedCustomer ? Math.max(0, totalAmount - selectedCustomer.loyaltyPoints).toLocaleString() : totalAmount.toLocaleString()} UZS
+                  {usePoints && selectedCustomer && selectedCustomer.loyaltyPoints > 0 && (
+                    <span className="text-sm text-green-600 ml-2 line-through">{totalAmount.toLocaleString()}</span>
+                  )}
+                </p>
               </div>
 
               <div className="space-y-3">

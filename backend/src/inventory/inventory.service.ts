@@ -119,6 +119,41 @@ export class InventoryService {
     return inventory;
   }
 
+  async writeOff(medicineId: string, quantity: number, reason: string, branchId: string) {
+    if (!branchId) throw new Error('Filial (branchId) tanlanmagan');
+    if (quantity <= 0) throw new Error('Yaroqsiz qilib chiqarilayotgan soni 0 dan katta bo\'lishi kerak');
+    
+    return this.prisma.$transaction(async (tx) => {
+      const inventory = await tx.inventory.findFirst({
+        where: { medicineId, branchId }
+      });
+
+      if (!inventory) {
+        throw new Error('Omborda bunday dori topilmadi');
+      }
+
+      const updatedInventory = await tx.inventory.update({
+        where: { id: inventory.id },
+        data: { quantity: { decrement: quantity } }
+      });
+
+      if (updatedInventory.quantity < 0) {
+        throw new Error('Omborda hisobdan chiqarish uchun yetarli qoldiq yo\'q');
+      }
+
+      await tx.inventoryTransaction.create({
+        data: {
+          inventoryId: inventory.id,
+          type: 'WRITE_OFF',
+          quantity: quantity,
+          notes: `Spisaniya (Sabab: ${reason})`
+        }
+      });
+
+      return updatedInventory;
+    });
+  }
+
   async getTotalValue(branchId?: string) {
     if (branchId) {
       const result: any = await this.prisma.$queryRaw`

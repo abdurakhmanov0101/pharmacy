@@ -177,4 +177,61 @@ export class ReportsService {
       count: s._count.id,
     }));
   }
+
+  async getWriteOffReports() {
+    const writeOffs = await this.prisma.inventoryTransaction.findMany({
+      where: { type: 'WRITE_OFF' },
+      include: {
+        inventory: {
+          include: {
+            medicine: true,
+            branch: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    let totalLostValue = 0;
+    let totalItemsWrittenOff = 0;
+    const reasonsMap: Record<string, number> = {};
+
+    const formattedList = writeOffs.map(wo => {
+      const medicine = wo.inventory.medicine;
+      const lostValue = wo.quantity * (medicine.purchasePrice || medicine.price || 0);
+      
+      totalLostValue += lostValue;
+      totalItemsWrittenOff += wo.quantity;
+
+      const reasonStr = wo.notes?.replace('Spisaniya (Sabab: ', '')?.replace(')', '') || 'Noma\'lum';
+      if (reasonsMap[reasonStr]) {
+        reasonsMap[reasonStr] += wo.quantity;
+      } else {
+        reasonsMap[reasonStr] = wo.quantity;
+      }
+
+      return {
+        id: wo.id,
+        date: wo.createdAt,
+        medicineName: medicine.name,
+        branchName: wo.inventory.branch.name,
+        quantity: wo.quantity,
+        reason: reasonStr,
+        lostValue: lostValue
+      };
+    });
+
+    const reasonsStats = Object.keys(reasonsMap).map(key => ({
+      reason: key,
+      quantity: reasonsMap[key],
+      percentage: totalItemsWrittenOff > 0 ? ((reasonsMap[key] / totalItemsWrittenOff) * 100).toFixed(1) : 0
+    }));
+
+    return {
+      totalLostValue,
+      totalItemsWrittenOff,
+      reasonsStats,
+      recentWriteOffs: formattedList.slice(0, 50) // Return last 50 for the table
+    };
+  }
 }

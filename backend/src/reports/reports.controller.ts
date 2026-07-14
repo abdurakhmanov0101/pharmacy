@@ -39,6 +39,11 @@ export class ReportsController {
     return this.reportsService.getTopMedicines(limit ? parseInt(limit) : 10);
   }
 
+  @Get('write-offs')
+  getWriteOffs() {
+    return this.reportsService.getWriteOffReports();
+  }
+
   @Get('payment-methods')
   getPaymentMethods(@Query('period') period?: 'daily' | 'weekly' | 'monthly') {
     return this.reportsService.getPaymentMethodStats(period || 'monthly');

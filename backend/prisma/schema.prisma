@@ -139,9 +139,22 @@ model Customer {
   phone         String?  @unique
   loyaltyPoints Int      @default(0)
   sales         Sale[]
+  loyaltyTransactions LoyaltyTransaction[]
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+model LoyaltyTransaction {
+  id          String   @id @default(uuid())
+  customerId  String
+  type        String   // "EARN", "SPEND"
+  points      Int
+  saleId      String?
+  notes       String?
+
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
 }
 
 model Supplier {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Search, Plus, Edit, Trash2, X, Upload, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useLanguage } from '@/i18n/LanguageContext';
@@ -27,17 +27,21 @@ export default function MedicinesClient({ initialMedicines }: { initialMedicines
     quantity: ''
   });
 
-  const filteredMedicines = medicines.filter(med => 
-    med.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (med.genericName && med.genericName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (med.barcode && med.barcode.includes(searchQuery))
-  );
+  const filteredMedicines = React.useMemo(() => {
+    return medicines.filter(med => 
+      med.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (med.genericName && med.genericName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (med.barcode && med.barcode.includes(searchQuery))
+    );
+  }, [medicines, searchQuery]);
 
   const totalPages = Math.ceil(filteredMedicines.length / itemsPerPage) || 1;
-  const paginatedMedicines = filteredMedicines.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const paginatedMedicines = React.useMemo(() => {
+    return filteredMedicines.slice(
+      (currentPage - 1) * itemsPerPage,
+      currentPage * itemsPerPage
+    );
+  }, [filteredMedicines, currentPage, itemsPerPage]);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
@@ -112,7 +116,7 @@ export default function MedicinesClient({ initialMedicines }: { initialMedicines
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
         
-        const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { raw: false }) as any[];
         
         const payload = jsonData.map((rawRow: any) => {
           const row: any = {};
@@ -135,7 +139,8 @@ export default function MedicinesClient({ initialMedicines }: { initialMedicines
           };
 
           const priceVal = getVal(['price', 'narx', 'narxi', 'narxi (uzs)', 'цена']);
-          const qtyVal = getVal(['quantity', 'qty', 'soni', 'qoldiq', 'stock', 'остаток', 'кол-во', 'miqdor', 'miqdori']);
+          const qtyVal = getVal(['quantity', 'qty', 'soni', 'qoldiq', 'stock', 'остаток', 'кол-во', 'miqdor', 'miqdori', 'soni (ombor)']);
+          const barcodeVal = getVal(['barcode', 'barkod', 'штрихкод', 'shtrix-kod', 'shtrix kod', 'shtrixkod']);
 
           return {
             name: String(row.name || row.nomi || row.наименование || row.maxsulot || row['dori nomi'] || row.tovar || row.mahsulot || '').trim(),
@@ -143,7 +148,7 @@ export default function MedicinesClient({ initialMedicines }: { initialMedicines
             categoryName: String(row.category || row.kategoriya || row.категория || '').trim(),
             price: parseNumber(priceVal),
             dosage: String(row.dosage || row.dozasi || row.дозировка || '').trim(),
-            barcode: String(row.barcode || row.barkod || row.штрихкод || '').trim(),
+            barcode: String(barcodeVal || '').trim(),
             quantity: parseNumber(qtyVal)
           };
         }).filter((med: any) => med.name); // faqat nomi borlarini olamiz
@@ -231,7 +236,36 @@ export default function MedicinesClient({ initialMedicines }: { initialMedicines
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Medicines');
 
     // Generate Excel file and trigger download
+    // Generate Excel file and trigger download
     XLSX.writeFile(workbook, 'medicines_export.xlsx');
+  };
+
+  const handleDownloadTemplate = () => {
+    const templateData = [
+      {
+        "Nomi": "Paratsetamol",
+        "Tarkibi": "Paratsetamol 500mg",
+        "Kategoriya": "Isitma tushiruvchi",
+        "Narxi": 2500,
+        "Dozasi": "500 mg",
+        "Shtrix-kod": "4780000000001",
+        "Soni (Ombor)": 100
+      },
+      {
+        "Nomi": "Trimol",
+        "Tarkibi": "Paratsetamol + Kofein",
+        "Kategoriya": "Og'riq qoldiruvchi",
+        "Narxi": 4500,
+        "Dozasi": "Tab",
+        "Shtrix-kod": "4780000000002",
+        "Soni (Ombor)": 50
+      }
+    ];
+    
+    const worksheet = XLSX.utils.json_to_sheet(templateData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Shablon');
+    XLSX.writeFile(workbook, 'dori_qoshish_shabloni.xlsx');
   };
 
   const handleDelete = async (id: string) => {
@@ -270,18 +304,26 @@ export default function MedicinesClient({ initialMedicines }: { initialMedicines
             accept=".xlsx, .xls, .csv" 
             onChange={handleFileUpload} 
           />
-          <button 
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-2 text-xs sm:text-sm bg-secondary text-secondary-foreground px-3 sm:px-4 py-2 rounded-md font-medium border hover:bg-secondary/80 transition-colors"
-          >
-            <Upload className="h-4 w-4" /> {t('medicines.importExcel')}
-          </button>
-          <button 
-            onClick={handleExportExcel}
-            className="flex items-center gap-2 text-xs sm:text-sm bg-secondary text-secondary-foreground px-3 sm:px-4 py-2 rounded-md font-medium border hover:bg-secondary/80 transition-colors"
-          >
-            <Download className="h-4 w-4" /> {t('medicines.exportExcel')}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleDownloadTemplate}
+              className="px-4 py-2 bg-blue-500/10 text-blue-600 font-semibold rounded-xl flex items-center gap-2 hover:bg-blue-500/20 transition-colors border border-blue-500/20"
+            >
+              <Download className="h-4 w-4" /> Shablon
+            </button>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="px-4 py-2 bg-emerald-500/10 text-emerald-600 font-semibold rounded-xl flex items-center gap-2 hover:bg-emerald-500/20 transition-colors border border-emerald-500/20"
+            >
+              <Upload className="h-4 w-4" /> {t('medicines.importExcel')}
+            </button>
+            <button
+              onClick={handleExportExcel}
+              className="px-4 py-2 bg-amber-500/10 text-amber-600 font-semibold rounded-xl flex items-center gap-2 hover:bg-amber-500/20 transition-colors border border-amber-500/20"
+            >
+              <Download className="h-4 w-4" /> {t('medicines.exportExcel')}
+            </button>
+          </div>
           <button 
             onClick={openAddModal}
             className="flex items-center gap-2 text-xs sm:text-sm bg-primary text-primary-foreground px-3 sm:px-4 py-2 rounded-md font-medium hover:bg-primary/90 transition-colors"

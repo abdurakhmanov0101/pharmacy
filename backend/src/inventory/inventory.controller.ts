@@ -35,6 +35,11 @@ export class InventoryController {
     return this.inventoryService.adjust(body.medicineId, body.quantity, body.notes || '', body.branchId);
   }
 
+  @Post('write-off')
+  writeOff(@Body() body: { medicineId: string; quantity: number; reason: string; branchId: string }) {
+    return this.inventoryService.writeOff(body.medicineId, body.quantity, body.reason, body.branchId);
+  }
+
   @Post('receive')
   receive(@Body() body: {
     medicineId?: string;

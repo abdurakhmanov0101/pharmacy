@@ -6,7 +6,7 @@ export class SalesService {
   constructor(private prisma: PrismaService) {}
 
   async createSale(payload: any) {
-    const { items, totalAmount, paymentMethod } = payload;
+    const { items, totalAmount, paymentMethod, customerId, usePoints } = payload;
 
     if (!items || items.length === 0) {
       throw new HttpException('Cart is empty', HttpStatus.BAD_REQUEST);
@@ -47,13 +47,64 @@ export class SalesService {
         throw new HttpException('Smena ochilmagan! Iltimos savdoni boshlash uchun smenani oching.', HttpStatus.BAD_REQUEST);
       }
 
+      // Handle Cashback & Points
+      let finalAmount = totalAmount;
+      let usedPoints = 0;
+      let earnedPoints = 0;
+
+      if (customerId) {
+        const customer = await tx.customer.findUnique({ where: { id: customerId } });
+        if (customer) {
+          if (usePoints && customer.loyaltyPoints > 0) {
+            // Deduct points up to total amount
+            usedPoints = Math.min(customer.loyaltyPoints, totalAmount);
+            finalAmount -= usedPoints;
+
+            await tx.customer.update({
+              where: { id: customerId },
+              data: { loyaltyPoints: { decrement: usedPoints } }
+            });
+
+            await tx.loyaltyTransaction.create({
+              data: {
+                customerId,
+                type: 'SPEND',
+                points: usedPoints,
+                notes: 'To\'lov uchun ishlatildi'
+              }
+            });
+          }
+
+          // Earn 1% cashback on the final paid amount
+          if (finalAmount > 0) {
+            earnedPoints = Math.floor(finalAmount * 0.01);
+            if (earnedPoints > 0) {
+              await tx.customer.update({
+                where: { id: customerId },
+                data: { loyaltyPoints: { increment: earnedPoints } }
+              });
+
+              await tx.loyaltyTransaction.create({
+                data: {
+                  customerId,
+                  type: 'EARN',
+                  points: earnedPoints,
+                  notes: 'Xarid uchun 1% bonus'
+                }
+              });
+            }
+          }
+        }
+      }
+
       // 1. Create Sale and SaleItems
       const sale = await tx.sale.create({
         data: {
           branchId: branch.id,
           userId: user.id,
+          customerId: customerId || null,
           cashierSessionId: currentSession.id,
-          totalAmount,
+          totalAmount: finalAmount,
           paymentMethod,
           items: {
             create: items.map((item: any) => ({
@@ -69,21 +120,23 @@ export class SalesService {
       });
 
       // 1.5 Create Payment records
-      if (paymentMethod === 'MIXED' && payload.splitPayments) {
-        if (payload.splitPayments.cash > 0) {
+      if (finalAmount > 0) {
+        if (paymentMethod === 'MIXED' && payload.splitPayments) {
+          if (payload.splitPayments.cash > 0) {
+            await tx.payment.create({
+              data: { saleId: sale.id, amount: payload.splitPayments.cash, method: 'CASH' }
+            });
+          }
+          if (payload.splitPayments.card > 0) {
+            await tx.payment.create({
+              data: { saleId: sale.id, amount: payload.splitPayments.card, method: 'CARD' }
+            });
+          }
+        } else {
           await tx.payment.create({
-            data: { saleId: sale.id, amount: payload.splitPayments.cash, method: 'CASH' }
+            data: { saleId: sale.id, amount: finalAmount, method: paymentMethod }
           });
         }
-        if (payload.splitPayments.card > 0) {
-          await tx.payment.create({
-            data: { saleId: sale.id, amount: payload.splitPayments.card, method: 'CARD' }
-          });
-        }
-      } else {
-        await tx.payment.create({
-          data: { saleId: sale.id, amount: totalAmount, method: paymentMethod }
-        });
       }
 
       // 2. Deduct Inventory and Log Transactions
@@ -99,21 +152,17 @@ export class SalesService {
         let currentInventoryId;
 
         if (inventory) {
-          const newQty = Math.max(0, inventory.quantity - item.quantity);
-          await tx.inventory.update({
+          const updatedInventory = await tx.inventory.update({
             where: { id: inventory.id },
-            data: { quantity: newQty }
+            data: { quantity: { decrement: item.quantity } }
           });
+          
+          if (updatedInventory.quantity < 0) {
+            throw new HttpException(`Omborda yetarli qoldiq yo'q (Dori ID: ${item.medicineId})`, HttpStatus.BAD_REQUEST);
+          }
           currentInventoryId = inventory.id;
         } else {
-          const newInventory = await tx.inventory.create({
-            data: {
-              medicineId: item.medicineId,
-              branchId: branch.id,
-              quantity: 0
-            }
-          });
-          currentInventoryId = newInventory.id;
+          throw new HttpException(`Sotilayotgan dori omborda mavjud emas (Dori ID: ${item.medicineId})`, HttpStatus.BAD_REQUEST);
         }
 
         // Create transaction log
@@ -124,6 +173,14 @@ export class SalesService {
             quantity: item.quantity,
             notes: `Sotuv orqali (ID: ${sale.id.slice(0,8)})`
           }
+        });
+      }
+
+      // Link saleId to loyalty transactions
+      if (usedPoints > 0 || earnedPoints > 0) {
+        await tx.loyaltyTransaction.updateMany({
+          where: { customerId, saleId: null },
+          data: { saleId: sale.id }
         });
       }
 
