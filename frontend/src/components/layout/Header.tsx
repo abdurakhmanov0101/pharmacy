@@ -12,7 +12,7 @@ export function Header() {
   };
 
   return (
-    <header className="h-16 border-b border-border bg-card flex items-center justify-between px-3 sm:px-6 shrink-0">
+    <header className="h-16 border-b border-white/10 dark:border-white/5 glass-panel flex items-center justify-between px-3 sm:px-6 shrink-0 z-20">
       <div className="flex items-center gap-2 sm:gap-4">
         <button 
           onClick={toggleMobileMenu}

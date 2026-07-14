@@ -1,17 +1,31 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Package, Search, Plus, Store, X, ArrowDownLeft, CheckCircle2 } from "lucide-react";
+import { Package, Search, Plus, Store, X, ArrowDownLeft, CheckCircle2, Printer } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
+import BarcodePrinter from "./BarcodePrinter";
+
+import useSWR from "swr";
+
+const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 export function InventoryClient() {
   const { t } = useLanguage();
-  const [branches, setBranches] = useState<any[]>([]);
   const [selectedBranchId, setSelectedBranchId] = useState<string>('');
-  const [inventory, setInventory] = useState<any[]>([]);
   const [medicines, setMedicines] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+
+  const { data: branches = [] } = useSWR("http://localhost:3001/api/branches", fetcher, {
+    onSuccess: (data) => {
+      if (data.length > 0 && !selectedBranchId) setSelectedBranchId(data[0].id);
+    }
+  });
+
+  const { data: inventory = [], isValidating: loading, mutate: fetchInventory } = useSWR(
+    selectedBranchId ? `http://localhost:3001/api/inventory?branchId=${selectedBranchId}` : null,
+    fetcher,
+    { refreshInterval: 5000 }
+  );
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -24,35 +38,13 @@ export function InventoryClient() {
     price: "",
     quantity: "10",
     expiryDate: "",
-    batchNumber: ""
+    batchNumber: "",
+    barcode: ""
   });
   const [submitting, setSubmitting] = useState(false);
+  const [printItem, setPrintItem] = useState<any>(null);
 
-  useEffect(() => {
-    fetch("http://localhost:3001/api/branches")
-      .then(res => res.json())
-      .then(data => {
-        setBranches(data);
-        if (data.length > 0) setSelectedBranchId(data[0].id);
-      })
-      .catch(() => {});
-  }, []);
 
-  const fetchInventory = () => {
-    if (!selectedBranchId) return;
-    setLoading(true);
-    fetch(`http://localhost:3001/api/inventory?branchId=${selectedBranchId}`)
-      .then(res => res.json())
-      .then(data => {
-        setInventory(data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    fetchInventory();
-  }, [selectedBranchId]);
 
   const openKirimModal = async () => {
     try {
@@ -115,7 +107,8 @@ export function InventoryClient() {
         quantity: Number(formData.quantity),
         branchId: selectedBranchId,
         expiryDate: formData.expiryDate || undefined,
-        batchNumber: formData.batchNumber || undefined
+        batchNumber: formData.batchNumber || undefined,
+        barcode: formData.barcode || (isNewMed ? Math.floor(10000000 + Math.random() * 90000000).toString() : undefined)
       };
 
       const res = await fetch("http://localhost:3001/api/inventory/receive", {
@@ -158,22 +151,7 @@ export function InventoryClient() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Ombor Qoldiqlari</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-1">Filiallar kesimida tovarlarni boshqarish va kirim qilish</p>
-        </div>
-        
-        <div className="flex items-center gap-3 bg-card border border-border p-2 rounded-xl shadow-sm">
-          <div className="bg-primary/10 p-2 rounded-lg text-primary">
-            <Store className="h-5 w-5" />
-          </div>
-          <select 
-            value={selectedBranchId}
-            onChange={(e) => setSelectedBranchId(e.target.value)}
-            className="bg-transparent border-none outline-none font-medium text-sm w-48 text-foreground cursor-pointer"
-          >
-            {branches.map(branch => (
-              <option key={branch.id} value={branch.id} className="bg-card text-foreground">{branch.name}</option>
-            ))}
-          </select>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">Ombordagi tovarlarni boshqarish va kirim qilish</p>
         </div>
       </div>
 
@@ -197,7 +175,8 @@ export function InventoryClient() {
       </div>
 
       <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="bg-muted/50 text-muted-foreground text-xs uppercase font-semibold">
               <tr>
@@ -218,7 +197,7 @@ export function InventoryClient() {
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
                     <Package className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                    Bu filial omborida hozircha tovarlar yo&apos;q
+                    Omborda hozircha tovarlar yo&apos;q
                   </td>
                 </tr>
               ) : (
@@ -237,14 +216,84 @@ export function InventoryClient() {
                         {item.quantity} dona
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-right">
-                      <button onClick={openKirimModal} className="text-primary hover:underline text-xs font-medium">Qo&apos;shimcha kirim</button>
+                    <td className="px-6 py-4 text-right flex items-center justify-end gap-3">
+                      <button 
+                        onClick={() => setPrintItem({
+                          name: item.medicine.name,
+                          price: item.medicine.price,
+                          barcode: item.medicine.barcode || item.medicine.id
+                        })}
+                        className="text-muted-foreground hover:text-foreground transition-colors"
+                        title="Barkodni Xprinter'ga chiqarish"
+                      >
+                        <Printer className="w-5 h-5" />
+                      </button>
+                      <button onClick={openKirimModal} className="text-primary hover:underline text-xs font-medium">Kirim</button>
                     </td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Card List View */}
+        <div className="block md:hidden divide-y divide-border overflow-y-auto max-h-[60vh]">
+          {loading ? (
+            <div className="p-6 text-center text-muted-foreground">Yuklanmoqda...</div>
+          ) : paginatedInventory.length === 0 ? (
+            <div className="p-12 text-center text-muted-foreground">
+              <Package className="h-12 w-12 mx-auto mb-3 opacity-20" />
+              Omborda hozircha tovarlar yo&apos;q
+            </div>
+          ) : (
+            paginatedInventory.map((item) => (
+              <div key={item.id} className="p-4 space-y-3 hover:bg-muted/10 transition-colors">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h4 className="font-semibold text-foreground text-sm">{item.medicine.name}</h4>
+                    {item.medicine.category?.name && (
+                      <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-primary/10 text-primary">
+                        {item.medicine.category.name}
+                      </span>
+                    )}
+                  </div>
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-semibold shrink-0 ${
+                    item.quantity > 20 
+                      ? 'bg-emerald-500/10 text-emerald-600' 
+                      : item.quantity > 0 
+                      ? 'bg-orange-500/10 text-orange-600' 
+                      : 'bg-red-500/10 text-red-600'
+                  }`}>
+                    {item.quantity} dona
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-[11px] sm:text-xs">
+                  <div>
+                    <p className="text-muted-foreground">Kelish narxi</p>
+                    <p className="font-medium text-foreground">
+                      {item.medicine.purchasePrice ? `${item.medicine.purchasePrice.toLocaleString()} so'm` : "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Sotish narxi</p>
+                    <p className="font-semibold text-green-600">{item.medicine.price.toLocaleString()} so'm</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end pt-2 border-t border-border/50">
+                  <button
+                    type="button"
+                    onClick={openKirimModal}
+                    className="px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary/20 rounded-lg text-xs font-semibold transition-colors"
+                  >
+                    Qo'shimcha kirim
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
         </div>
 
         {/* Inventory Pagination Bar */}
@@ -416,6 +465,15 @@ export function InventoryClient() {
             </form>
           </div>
         </div>
+      )}
+
+      {printItem && (
+        <BarcodePrinter 
+          name={printItem.name} 
+          price={printItem.price} 
+          barcode={printItem.barcode} 
+          onPrinted={() => setPrintItem(null)} 
+        />
       )}
     </div>
   );

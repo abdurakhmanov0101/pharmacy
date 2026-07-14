@@ -22,6 +22,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line
     setMounted(true);
     const storedLang = localStorage.getItem('app_lang') as Language;
     if (storedLang && ['uz', 'ru', 'en'].includes(storedLang)) {

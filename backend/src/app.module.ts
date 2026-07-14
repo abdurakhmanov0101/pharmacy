@@ -15,6 +15,7 @@ import { LeaveModule } from './leave/leave.module';
 import { PayrollModule } from './payroll/payroll.module';
 import { ShiftModule } from './shift/shift.module';
 import { ExpensesModule } from './expenses/expenses.module';
+import { CustomersModule } from './customers/customers.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { ExpensesModule } from './expenses/expenses.module';
     PayrollModule,
     ShiftModule,
     ExpensesModule,
+    CustomersModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],

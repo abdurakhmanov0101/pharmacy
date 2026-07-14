@@ -188,7 +188,7 @@ export default function ExpensesClient() {
         </div>
       </div>
 
-      <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm overflow-x-auto">
+      <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
         {loading ? (
           <div className="p-8 text-center text-muted-foreground">Yuklanmoqda...</div>
         ) : filteredExpenses.length === 0 ? (
@@ -197,45 +197,88 @@ export default function ExpensesClient() {
             Hali kassa chiqimlari kiritilmagan.
           </div>
         ) : (
-          <table className="w-full text-sm text-left">
-            <thead className="bg-muted/50 text-muted-foreground text-xs uppercase font-semibold border-b border-border">
-              <tr>
-                <th className="p-4 font-medium">Chiqim Nomi</th>
-                <th className="p-4 font-medium">Toifa</th>
-                <th className="p-4 font-medium">Izoh</th>
-                <th className="p-4 font-medium">Summa (UZS)</th>
-                <th className="p-4 font-medium">Sana</th>
-                <th className="p-4 font-medium text-right">Amal</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
+          <>
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-muted/50 text-muted-foreground text-xs uppercase font-semibold border-b border-border">
+                  <tr>
+                    <th className="p-4 font-medium">Chiqim Nomi</th>
+                    <th className="p-4 font-medium">Toifa</th>
+                    <th className="p-4 font-medium">Izoh</th>
+                    <th className="p-4 font-medium">Summa (UZS)</th>
+                    <th className="p-4 font-medium">Sana</th>
+                    <th className="p-4 font-medium text-right">Amal</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filteredExpenses.map((exp) => (
+                    <tr key={exp.id} className="hover:bg-muted/30 transition-colors">
+                      <td className="p-4 font-semibold text-foreground">{exp.title}</td>
+                      <td className="p-4">
+                        <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold border ${getCategoryColor(exp.category)}`}>
+                          {exp.category}
+                        </span>
+                      </td>
+                      <td className="p-4 text-muted-foreground text-xs">{exp.notes || "—"}</td>
+                      <td className="p-4 font-bold text-red-600">
+                        -{exp.amount?.toLocaleString()} so&apos;m
+                      </td>
+                      <td className="p-4 text-xs text-muted-foreground">
+                        {new Date(exp.date).toLocaleDateString("uz-UZ", { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </td>
+                      <td className="p-4 text-right">
+                        <button
+                          onClick={() => handleDelete(exp.id)}
+                          className="p-1.5 text-muted-foreground hover:text-destructive rounded-lg hover:bg-destructive/10 transition-colors"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card List View */}
+            <div className="block md:hidden divide-y divide-border overflow-y-auto max-h-[60vh]">
               {filteredExpenses.map((exp) => (
-                <tr key={exp.id} className="hover:bg-muted/30 transition-colors">
-                  <td className="p-4 font-semibold text-foreground">{exp.title}</td>
-                  <td className="p-4">
-                    <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold border ${getCategoryColor(exp.category)}`}>
-                      {exp.category}
+                <div key={exp.id} className="p-4 space-y-3 hover:bg-muted/10 transition-colors">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <h4 className="font-semibold text-foreground text-sm">{exp.title}</h4>
+                      <span className={`inline-block mt-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${getCategoryColor(exp.category)}`}>
+                        {exp.category}
+                      </span>
+                    </div>
+                    <p className="font-bold text-red-600 text-sm shrink-0">
+                      -{exp.amount?.toLocaleString()} so'm
+                    </p>
+                  </div>
+
+                  {exp.notes && (
+                    <p className="text-[11px] text-muted-foreground bg-muted/30 p-2 rounded-lg">
+                      {exp.notes}
+                    </p>
+                  )}
+
+                  <div className="flex items-center justify-between pt-2 border-t border-border/50 text-[10px] text-muted-foreground">
+                    <span>
+                      {new Date(exp.date).toLocaleDateString("uz-UZ", { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </span>
-                  </td>
-                  <td className="p-4 text-muted-foreground text-xs">{exp.notes || "—"}</td>
-                  <td className="p-4 font-bold text-red-600">
-                    -{exp.amount?.toLocaleString()} so&apos;m
-                  </td>
-                  <td className="p-4 text-xs text-muted-foreground">
-                    {new Date(exp.date).toLocaleDateString("uz-UZ", { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                  </td>
-                  <td className="p-4 text-right">
                     <button
+                      type="button"
                       onClick={() => handleDelete(exp.id)}
                       className="p-1.5 text-muted-foreground hover:text-destructive rounded-lg hover:bg-destructive/10 transition-colors"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
-                  </td>
-                </tr>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+          </>
         )}
       </div>
 

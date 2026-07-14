@@ -7,7 +7,6 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [name, setName] = useState("AptekaOS - Markaziy Dorixona");
   const [currency, setCurrency] = useState("UZS");
-  const [faceIdEnabled, setFaceIdEnabled] = useState(true);
   const [telegramAlerts, setTelegramAlerts] = useState(true);
 
   const handleSave = () => {
@@ -60,22 +59,10 @@ export default function SettingsPage() {
 
         <h3 className="text-lg font-bold flex items-center gap-2 border-b border-border pb-4 pt-4">
           <Bell className="w-5 h-5 text-primary" />
-          AI Davomat va Telegram Bildirishnomalari
+          Telegram Bildirishnomalari
         </h3>
 
         <div className="space-y-4">
-          <label className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border cursor-pointer">
-            <div>
-              <div className="font-semibold">Tezkor AI Face ID (Qotmaslik rejimi)</div>
-              <div className="text-xs text-muted-foreground">Kamera faqat tugma bosilganda yoqiladi va tezkor o&apos;chadi</div>
-            </div>
-            <input
-              type="checkbox"
-              checked={faceIdEnabled}
-              onChange={(e) => setFaceIdEnabled(e.target.checked)}
-              className="w-5 h-5 accent-primary"
-            />
-          </label>
 
           <label className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border cursor-pointer">
             <div>

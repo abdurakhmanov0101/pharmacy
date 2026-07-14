@@ -25,6 +25,7 @@ export default function AnimatedNumber({ value }: { value: number }) {
     };
     
     window.requestAnimationFrame(step);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
   return <span>{displayValue.toLocaleString().replace(/,/g, ' ')}</span>;

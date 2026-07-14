@@ -1,36 +1,24 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import useSWR from 'swr';
+import { useState } from 'react';
 import { Search, Eye, X, Receipt, RefreshCw } from 'lucide-react';
 import { useLanguage } from '@/i18n/LanguageContext';
 
+const fetcher = (url: string) => fetch(url).then(res => res.json());
+
 export default function SalesClient({ initialSales }: { initialSales: any[] }) {
   const { t } = useLanguage();
-  const [sales, setSales] = useState(initialSales);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSale, setSelectedSale] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
 
-  const fetchSales = async () => {
-    try {
-      const res = await fetch('http://localhost:3001/api/sales');
-      if (res.ok) {
-        const data = await res.json();
-        setSales(data);
-      }
-    } catch {}
-  };
-
-  useEffect(() => {
-    fetchSales();
-    const interval = setInterval(fetchSales, 4000);
-    return () => clearInterval(interval);
-  }, []);
+  const { data: sales, isValidating: loading, mutate } = useSWR('http://localhost:3001/api/sales', fetcher, {
+    fallbackData: initialSales,
+    refreshInterval: 4000,
+  });
 
   const handleManualRefresh = async () => {
-    setLoading(true);
-    await fetchSales();
-    setLoading(false);
+    await mutate();
   };
 
   const filteredSales = sales.filter(sale => 
@@ -69,7 +57,8 @@ export default function SalesClient({ initialSales }: { initialSales: any[] }) {
       </div>
 
       <div className="flex-1 bg-card border border-border rounded-xl shadow-sm overflow-hidden flex flex-col">
-        <div className="overflow-x-auto flex-1">
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto flex-1">
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-muted-foreground uppercase bg-muted/50 border-b border-border sticky top-0">
               <tr>
@@ -124,6 +113,64 @@ export default function SalesClient({ initialSales }: { initialSales: any[] }) {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Card List View */}
+        <div className="block md:hidden divide-y divide-border overflow-y-auto max-h-[60vh]">
+          {filteredSales.length === 0 ? (
+            <div className="p-6 text-center text-muted-foreground">
+              {t('salesHistory.noData')}
+            </div>
+          ) : (
+            filteredSales.map((sale) => {
+              const totalQty = sale.items?.reduce((sum: number, item: any) => sum + item.quantity, 0) || 0;
+              const itemsList = sale.items?.map((item: any) => item.medicine?.name).filter(Boolean).join(', ') || 'Dorilar';
+              return (
+                <div key={sale.id} className="p-4 space-y-3 hover:bg-muted/10 transition-colors">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-mono text-xs text-muted-foreground">ID: {sale.id.slice(0, 8)}...</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        {new Date(sale.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold shrink-0 ${
+                      sale.paymentMethod === 'CASH' 
+                        ? 'bg-amber-100 text-amber-700' 
+                        : sale.paymentMethod === 'MIXED' 
+                        ? 'bg-purple-100 text-purple-700' 
+                        : 'bg-blue-100 text-blue-700'
+                    }`}>
+                      {sale.paymentMethod === 'CASH' ? t('pos.cash') : sale.paymentMethod === 'MIXED' ? 'Aralash' : t('pos.card')}
+                    </span>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold text-foreground truncate max-w-[280px]">
+                      {itemsList}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      Soni: {totalQty} dona
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                    <p className="text-sm font-bold text-green-600">
+                      {sale.totalAmount.toLocaleString()} UZS
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSale(sale)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary/20 rounded-lg text-xs font-semibold transition-colors"
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                      <span>Tafsilotlar</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
 

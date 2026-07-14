@@ -13,27 +13,23 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import AnimatedNumber from "@/components/ui/AnimatedNumber";
-
+import useSWR from "swr";
 import { useState, useEffect } from "react";
+
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function DashboardClient({ stats: initialStats, error }: { stats: any; error: string | null }) {
   const { t } = useLanguage();
-  const [stats, setStats] = useState(initialStats);
   const [mounted, setMounted] = useState(false);
 
+  const { data: stats } = useSWR("http://localhost:3001/api/dashboard", fetcher, {
+    fallbackData: initialStats,
+    refreshInterval: 5000, // SWR automatically pauses when window is out of focus
+  });
+
   useEffect(() => {
+    // eslint-disable-next-line
     setMounted(true);
-    const fetchDashboard = () => {
-      fetch("http://localhost:3001/api/dashboard")
-        .then((res) => res.json())
-        .then((data) => {
-          if (data && !data.error) setStats(data);
-        })
-        .catch(() => {});
-    };
-    fetchDashboard();
-    const interval = setInterval(fetchDashboard, 5000);
-    return () => clearInterval(interval);
   }, []);
 
   const chartData = stats?.chartData || [];
@@ -67,7 +63,7 @@ export default function DashboardClient({ stats: initialStats, error }: { stats:
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-card border border-border rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+        <div className="glass-panel p-5 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 relative overflow-hidden group rounded-2xl">
           <div className="flex items-center justify-between mb-3 relative z-10">
             <p className="text-sm font-medium text-muted-foreground">Bugungi sotuv</p>
             <div className="p-2 bg-emerald-100/50 text-emerald-600 rounded-xl group-hover:bg-emerald-100 transition-colors">
@@ -83,7 +79,7 @@ export default function DashboardClient({ stats: initialStats, error }: { stats:
           </div>
         </div>
 
-        <div className="bg-card border border-border rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+        <div className="glass-panel p-5 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 relative overflow-hidden group rounded-2xl">
           <div className="flex items-center justify-between mb-3 relative z-10">
             <p className="text-sm font-medium text-muted-foreground">Oylik daromad</p>
             <div className="p-2 bg-blue-100/50 text-blue-600 rounded-xl group-hover:bg-blue-100 transition-colors">
@@ -99,7 +95,7 @@ export default function DashboardClient({ stats: initialStats, error }: { stats:
           </div>
         </div>
 
-        <div className="bg-card border border-border rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+        <div className="glass-panel p-5 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 relative overflow-hidden group rounded-2xl">
           <div className="flex items-center justify-between mb-3 relative z-10">
             <p className="text-sm font-medium text-muted-foreground">Ombor qiymati</p>
             <div className="p-2 bg-purple-100/50 text-purple-600 rounded-xl group-hover:bg-purple-100 transition-colors">
@@ -115,23 +111,23 @@ export default function DashboardClient({ stats: initialStats, error }: { stats:
           </div>
         </div>
 
-        <div className="bg-amber-50/50 border border-amber-200/50 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+        <div className="bg-amber-500/10 backdrop-blur-md border border-amber-500/20 rounded-2xl p-5 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 relative overflow-hidden group">
           <div className="flex items-center justify-between mb-3 relative z-10">
-            <p className="text-sm font-medium text-amber-800">Kam qolgan dorilar</p>
-            <div className="p-2 bg-amber-100/80 text-amber-600 rounded-xl group-hover:bg-amber-200 transition-colors">
+            <p className="text-sm font-medium text-amber-700 dark:text-amber-400">Kam qolgan dorilar</p>
+            <div className="p-2 bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-xl group-hover:bg-amber-500/30 transition-colors">
               <AlertCircle className="h-5 w-5" />
             </div>
           </div>
-          <p className="text-3xl font-black text-amber-700 relative z-10 tracking-tight">
+          <p className="text-3xl font-black text-amber-700 dark:text-amber-400 relative z-10 tracking-tight">
             {stats ? <AnimatedNumber value={stats.lowStockItems} /> : "—"} ta
           </p>
-          <p className="text-xs text-amber-700/70 mt-1">E'tibor talab qiladi</p>
+          <p className="text-xs text-amber-700/70 dark:text-amber-400/70 mt-1">E'tibor talab qiladi</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Chart */}
-        <div className="lg:col-span-2 bg-card border border-border rounded-xl p-6 shadow-sm">
+        <div className="lg:col-span-2 glass-panel rounded-2xl p-6 hover:shadow-lg transition-all duration-300">
           <div className="flex items-center justify-between mb-6">
             <h2 className="font-semibold text-lg">So'nggi 7 kunlik sotuv</h2>
             <Link href="/reports" className="text-xs text-primary hover:underline flex items-center gap-1 font-medium">
@@ -190,7 +186,7 @@ export default function DashboardClient({ stats: initialStats, error }: { stats:
         </div>
 
         {/* Expiring Soon */}
-        <div className="bg-card border border-border rounded-xl p-6">
+        <div className="glass-panel rounded-2xl p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-base flex items-center gap-2">
               <AlertCircle className="h-4 w-4 text-destructive" />
@@ -240,7 +236,7 @@ export default function DashboardClient({ stats: initialStats, error }: { stats:
       {/* Bottom Row: Top Medicines + Telegram Banner */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Top Medicines */}
-        <div className="lg:col-span-2 bg-card border border-border rounded-xl p-6">
+        <div className="lg:col-span-2 glass-panel rounded-2xl p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-base">Bu oy eng ko'p sotilganlar</h2>
             <Link href="/reports" className="text-xs text-primary hover:underline flex items-center gap-1">
@@ -282,9 +278,12 @@ export default function DashboardClient({ stats: initialStats, error }: { stats:
         </div>
 
         {/* Telegram Bot Banner */}
-        <div className="bg-gradient-to-br from-blue-500 to-blue-700 rounded-xl p-6 text-white flex flex-col justify-between">
-          <div>
-            <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center mb-3">
+        <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl p-6 text-white flex flex-col justify-between shadow-lg relative overflow-hidden group">
+          <div className="absolute -top-10 -right-10 opacity-10 transform scale-150 group-hover:scale-110 transition-transform duration-700 pointer-events-none">
+             <Bot className="h-48 w-48" />
+          </div>
+          <div className="relative z-10">
+            <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center mb-3">
               <Bot className="h-5 w-5" />
             </div>
             <h2 className="font-bold text-base mb-1">Telegram Bot</h2>

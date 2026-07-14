@@ -1,21 +1,27 @@
 'use client';
 
+import useSWR from 'swr';
 import { useState, useEffect, useRef } from 'react';
-import { Search, ShoppingCart, Plus, Minus, Trash2, CreditCard, Banknote, X, ScanLine, Zap, CheckCircle2, Package } from 'lucide-react';
+import { Search, ShoppingCart, Plus, Minus, Trash2, CreditCard, Banknote, X, ScanLine, Zap, CheckCircle2, Package, Camera, Wallet } from 'lucide-react';
 import { useLanguage } from '@/i18n/LanguageContext';
+import MobileScanner from './MobileScanner';
+
+const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 export default function POSClient({ initialMedicines }: { initialMedicines: any[] }) {
   const { t } = useLanguage();
-  const [medicines, setMedicines] = useState(initialMedicines);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 36;
   const [cart, setCart] = useState<any[]>([]);
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState('CASH'); // CASH or CARD
+  const [paymentMethod, setPaymentMethod] = useState('CASH'); // CASH or CARD or MIXED
+  const [cashAmount, setCashAmount] = useState<string>('');
+  const [activeMobileTab, setActiveMobileTab] = useState<'catalog' | 'cart'>('catalog');
+  const [isMobileScannerOpen, setIsMobileScannerOpen] = useState(false);
 
   // Barcode scanner settings & feedback
-  const [autoCheckoutOnScan, setAutoCheckoutOnScan] = useState(false);
+  const [autoCheckoutOnScan, setAutoCheckoutOnScan] = useState(true);
   const [scanNotification, setScanNotification] = useState<string | null>(null);
   const barcodeBufferRef = useRef<string>('');
   const lastKeyTimeRef = useRef<number>(0);
@@ -39,34 +45,13 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
     } catch (e) {}
   };
 
-  // Fetch updated medicines to show real-time remaining inventory
-  const fetchUpdatedMedicines = async (query = '') => {
-    try {
-      const url = query
-        ? `http://localhost:3001/api/medicines?search=${encodeURIComponent(query)}&limit=100`
-        : `http://localhost:3001/api/medicines?limit=300`;
-      const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        setMedicines(data);
-      }
-    } catch (err) {}
-  };
-
-  useEffect(() => {
-    fetchUpdatedMedicines();
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (searchQuery.trim().length >= 2) {
-        fetchUpdatedMedicines(searchQuery.trim());
-      } else if (searchQuery.trim().length === 0) {
-        fetchUpdatedMedicines();
-      }
-    }, 250);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
+  const { data: medicines = initialMedicines, mutate: mutateMedicines } = useSWR(
+    searchQuery.trim().length >= 2
+      ? `http://localhost:3001/api/medicines?search=${encodeURIComponent(searchQuery.trim())}&limit=100`
+      : `http://localhost:3001/api/medicines?limit=300`,
+    fetcher,
+    { fallbackData: initialMedicines, refreshInterval: 5000 }
+  );
 
   // Global Barcode Scanner Listener (Hardware scanner simulates rapid keyboard input ending in Enter)
   useEffect(() => {
@@ -76,7 +61,7 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
       const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
 
       const now = Date.now();
-      if (now - lastKeyTimeRef.current > 100) {
+      if (now - lastKeyTimeRef.current > 250) {
         barcodeBufferRef.current = '';
       }
       lastKeyTimeRef.current = now;
@@ -132,7 +117,7 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
         });
         if (res.ok) {
           showScanToast(`⚡ TEZKOR SOTUV (Skaner): "${found.name}" (1 dona) sotildi va ombordan kamaydi!`);
-          fetchUpdatedMedicines();
+          mutateMedicines();
         }
       } catch (err) {
         showScanToast(`❌ Sotuvda xatolik yuz berdi`);
@@ -186,7 +171,7 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
 
   const handleCheckout = async () => {
     try {
-      const payload = {
+      const payload: any = {
         items: cart.map(item => ({
           medicineId: item.id,
           quantity: item.quantity,
@@ -195,6 +180,16 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
         totalAmount,
         paymentMethod
       };
+
+      if (paymentMethod === 'MIXED') {
+        const cash = Number(cashAmount) || 0;
+        const card = totalAmount - cash;
+        if (cash < 0 || card < 0) {
+          alert("Aralash to'lov summasi noto'g'ri kiritildi!");
+          return;
+        }
+        payload.splitPayments = { cash, card };
+      }
 
       const res = await fetch('http://localhost:3001/api/sales', {
         method: 'POST',
@@ -206,7 +201,7 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
         alert(t('pos.successMessage') || "✅ Sotuv muvaffaqiyatli amalga oshdi va dorilar ombordan chegirildi!");
         setCart([]);
         setIsCheckoutModalOpen(false);
-        fetchUpdatedMedicines();
+        mutateMedicines();
       } else {
         alert(t('pos.errorMessage') || "Sotuvda xatolik");
       }
@@ -217,7 +212,7 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
   };
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 h-full p-4 sm:p-6 md:p-8 max-w-7xl mx-auto">
+    <div className="flex flex-col lg:flex-row gap-4 lg:gap-12 h-full p-3 sm:p-6 md:p-8 w-full max-w-full mx-auto overflow-hidden">
       {/* Toast Notification Banner for Scanner */}
       {scanNotification && (
         <div className="fixed top-6 right-6 z-50 bg-foreground text-background px-5 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 border border-border animate-in fade-in slide-in-from-top-4 duration-300">
@@ -226,8 +221,41 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
         </div>
       )}
 
+      {/* Mobile Tab Switcher */}
+      <div className="flex lg:hidden bg-muted p-1 rounded-xl gap-1 mb-2 w-full shrink-0">
+        <button
+          type="button"
+          onClick={() => setActiveMobileTab('catalog')}
+          className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+            activeMobileTab === 'catalog'
+              ? 'bg-card text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Package className="h-4 w-4" />
+          <span>Katalog</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveMobileTab('cart')}
+          className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 relative ${
+            activeMobileTab === 'cart'
+              ? 'bg-card text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <ShoppingCart className="h-4 w-4" />
+          <span>Savat</span>
+          {cart.length > 0 && (
+            <span className="bg-primary text-primary-foreground text-[10px] font-bold px-2 py-0.5 rounded-full">
+              {cart.reduce((acc, item) => acc + item.quantity, 0)}
+            </span>
+          )}
+        </button>
+      </div>
+
       {/* Catalog Section */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
+      <div className={`flex-1 flex flex-col h-full overflow-hidden ${activeMobileTab === 'catalog' ? 'flex' : 'hidden lg:flex'}`}>
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
           <div>
             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">{t('pos.catalog') || "Sotuv (POS & Skaner)"}</h2>
@@ -249,15 +277,24 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
           </button>
         </div>
         
-        <div className="relative mb-6">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input 
-            type="text" 
-            placeholder="Skanerlang yoki Dori nomi / Barkod qidiring (Enter bosing)..."
-            value={searchQuery}
-            onChange={handleSearchChange}
-            className="w-full pl-10 pr-4 py-3 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all shadow-sm font-medium"
-          />
+        <div className="relative mb-6 flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input 
+              type="text" 
+              placeholder="Skanerlang yoki Dori nomi / Barkod qidiring (Enter bosing)..."
+              value={searchQuery}
+              onChange={handleSearchChange}
+              className="w-full pl-10 pr-4 py-3 bg-card border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all shadow-sm font-medium"
+            />
+          </div>
+          <button
+            onClick={() => setIsMobileScannerOpen(true)}
+            className="flex items-center justify-center gap-2 bg-primary text-primary-foreground px-4 py-3 rounded-xl hover:bg-primary/90 transition-colors shadow-sm font-medium shrink-0"
+          >
+            <Camera className="h-5 w-5" />
+            <span className="hidden sm:inline">Kamera Skaner</span>
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto pr-1 pb-10 md:pb-0 flex flex-col justify-between">
@@ -327,7 +364,7 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
       </div>
 
       {/* Cart Section */}
-      <div className="w-full lg:w-96 bg-card border border-border rounded-2xl flex flex-col h-full shadow-sm">
+      <div className={`w-full lg:w-96 bg-card border border-border rounded-2xl flex flex-col h-full shadow-sm ${activeMobileTab === 'cart' ? 'flex' : 'hidden lg:flex'}`}>
         <div className="p-4 border-b border-border flex items-center justify-between bg-muted/30 rounded-t-2xl">
           <h3 className="font-bold text-lg flex items-center gap-2">
             <ShoppingCart className="h-5 w-5 text-primary" /> {t('pos.cart')}
@@ -399,30 +436,62 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
 
               <div className="space-y-3">
                 <label className="block text-sm font-medium">To&apos;lov turini tanlang</label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   <button
                     type="button"
                     onClick={() => setPaymentMethod('CASH')}
-                    className={`flex items-center justify-center gap-2 p-3.5 rounded-xl border font-semibold text-sm transition-all ${
+                    className={`flex items-center justify-center gap-2 p-3 rounded-xl border font-semibold text-xs sm:text-sm transition-all ${
                       paymentMethod === 'CASH'
                         ? 'border-primary bg-primary/10 text-primary shadow-sm'
                         : 'border-border hover:bg-muted/50'
                     }`}
                   >
-                    <Banknote className="h-5 w-5" /> Naqd pul
+                    <Banknote className="h-4 w-4 sm:h-5 sm:w-5" /> Naqd pul
                   </button>
                   <button
                     type="button"
                     onClick={() => setPaymentMethod('CARD')}
-                    className={`flex items-center justify-center gap-2 p-3.5 rounded-xl border font-semibold text-sm transition-all ${
+                    className={`flex items-center justify-center gap-2 p-3 rounded-xl border font-semibold text-xs sm:text-sm transition-all ${
                       paymentMethod === 'CARD'
                         ? 'border-primary bg-primary/10 text-primary shadow-sm'
                         : 'border-border hover:bg-muted/50'
                     }`}
                   >
-                    <CreditCard className="h-5 w-5" /> Plastik karta / Click
+                    <CreditCard className="h-4 w-4 sm:h-5 sm:w-5" /> Karta
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('MIXED')}
+                    className={`col-span-2 sm:col-span-1 flex items-center justify-center gap-2 p-3 rounded-xl border font-semibold text-xs sm:text-sm transition-all ${
+                      paymentMethod === 'MIXED'
+                        ? 'border-primary bg-primary/10 text-primary shadow-sm'
+                        : 'border-border hover:bg-muted/50'
+                    }`}
+                  >
+                    <Wallet className="h-4 w-4 sm:h-5 sm:w-5" /> Aralash
                   </button>
                 </div>
+
+                {paymentMethod === 'MIXED' && (
+                  <div className="flex gap-3 mt-4 p-4 border border-border rounded-xl bg-muted/20 animate-in fade-in zoom-in-95 duration-200">
+                    <div className="flex-1">
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">Naqd pul qismi</label>
+                      <input 
+                        type="number" 
+                        value={cashAmount} 
+                        onChange={(e) => setCashAmount(e.target.value)} 
+                        placeholder="Summani kiriting..." 
+                        className="w-full p-2.5 bg-background border border-border rounded-lg text-sm font-bold focus:ring-2 focus:ring-primary/50 outline-none transition-all"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs font-semibold text-muted-foreground mb-1.5">Karta qismi (Avto)</label>
+                      <div className="w-full p-2.5 border border-border rounded-lg bg-background text-foreground font-bold text-sm">
+                        {Math.max(0, totalAmount - (Number(cashAmount) || 0)).toLocaleString()} UZS
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="pt-2 flex gap-3">
@@ -444,6 +513,12 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
             </div>
           </div>
         </div>
+      )}
+      {isMobileScannerOpen && (
+        <MobileScanner 
+          onScan={handleBarcodeScanned}
+          onClose={() => setIsMobileScannerOpen(false)}
+        />
       )}
     </div>
   );

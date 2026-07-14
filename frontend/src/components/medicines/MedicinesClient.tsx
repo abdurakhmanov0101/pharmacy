@@ -305,7 +305,8 @@ export default function MedicinesClient({ initialMedicines }: { initialMedicines
       </div>
 
       <div className="border border-border rounded-lg bg-card overflow-hidden flex-1 flex flex-col">
-        <div className="overflow-x-auto">
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-muted-foreground uppercase bg-muted/50 border-b border-border">
               <tr>
@@ -353,6 +354,76 @@ export default function MedicinesClient({ initialMedicines }: { initialMedicines
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Card List View */}
+        <div className="block md:hidden divide-y divide-border overflow-y-auto max-h-[60vh]">
+          {paginatedMedicines.length === 0 ? (
+            <div className="p-6 text-center text-muted-foreground">
+              {t('medicines.noMedicinesFound')}
+            </div>
+          ) : (
+            paginatedMedicines.map((med: any) => {
+              const stock = med.inventory?.reduce((sum: number, inv: any) => sum + inv.quantity, 0) || 0;
+              return (
+                <div key={med.id} className="p-4 space-y-3 hover:bg-muted/10 transition-colors">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <h4 className="font-semibold text-foreground text-sm">{med.name}</h4>
+                      {med.genericName && (
+                        <p className="text-[11px] text-muted-foreground mt-0.5">{med.genericName}</p>
+                      )}
+                    </div>
+                    {med.category?.name && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-primary/10 text-primary shrink-0">
+                        {med.category.name}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-[11px] sm:text-xs">
+                    <div>
+                      <p className="text-muted-foreground">Dozasi / Shakli</p>
+                      <p className="font-medium text-foreground">{med.dosage || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Barkod</p>
+                      <p className="font-mono text-foreground truncate max-w-[120px]">{med.barcode || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Narxi</p>
+                      <p className="font-semibold text-green-600">{med.price.toLocaleString()} UZS</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Qoldiq</p>
+                      <p className={`font-bold ${stock > 10 ? 'text-primary' : 'text-destructive'}`}>
+                        {stock} dona
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-2 border-t border-border/50">
+                    <button
+                      type="button"
+                      onClick={() => openEditModal(med)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary/20 rounded-lg text-xs font-semibold transition-colors"
+                    >
+                      <Edit className="h-3.5 w-3.5" />
+                      <span>Tahrirlash</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(med.id)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-destructive/10 text-destructive hover:bg-destructive/20 rounded-lg text-xs font-semibold transition-colors"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      <span>O'chirish</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
 
         {/* Pagination Controls */}

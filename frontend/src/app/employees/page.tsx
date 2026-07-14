@@ -2,7 +2,7 @@ import EmployeesClientWrapper from "@/components/employees/EmployeesClientWrappe
 
 export const metadata = {
   title: "Xodimlar va Davomat | Apteka SaaS",
-  description: "Xodimlarni boshqarish va Face ID davomat tizimi",
+  description: "Xodimlarni boshqarish tizimi",
 };
 
 export default function EmployeesPage() {

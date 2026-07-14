@@ -68,9 +68,6 @@ export function Sidebar() {
       items: [
         { href: "/employees", icon: <UserCircle />, label: "Xodimlar Ro'yxati" },
         { href: "/payroll", icon: <CreditCard />, label: "Oylik Maoshlar" },
-        { href: "/leave", icon: <Calendar />, label: "Ta'tillar" },
-        { href: "/attendance/camera", icon: <Camera />, label: "Davomat Kamerasi" },
-        { href: "/security-alerts", icon: <ShieldAlert />, label: "Xavfsizlik Jurnali" },
         { href: "/telegram", icon: <Bot />, label: "Telegram Bot" },
       ],
     },
@@ -84,7 +81,6 @@ export function Sidebar() {
     {
       label: "Sozlamalar",
       items: [
-        { href: "/branches", icon: <MapPin />, label: "Filiallar" },
         { href: "/settings", icon: <Settings />, label: "Sozlamalar" },
       ],
     }
@@ -149,7 +145,7 @@ export function Sidebar() {
   return (
     <>
       {/* Desktop Sidebar */}
-      <aside className="w-64 border-r border-border bg-card hidden md:flex flex-col h-full shrink-0">
+      <aside className="w-64 border-r border-white/10 dark:border-white/5 glass-panel hidden md:flex flex-col h-full shrink-0 z-20">
         {sidebarContent}
       </aside>
 
@@ -162,7 +158,7 @@ export function Sidebar() {
             className="fixed inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
           />
           {/* Drawer Panel */}
-          <aside className="relative w-72 max-w-[85vw] bg-card border-r border-border flex flex-col h-full z-10 shadow-2xl animate-in slide-in-from-left duration-300">
+          <aside className="relative w-72 max-w-[85vw] glass-panel border-r border-white/10 dark:border-white/5 flex flex-col h-full z-10 shadow-2xl animate-in slide-in-from-left duration-300">
             {sidebarContent}
           </aside>
         </div>
@@ -185,10 +181,10 @@ function NavItem({
   return (
     <Link
       href={href}
-      className={`flex items-center gap-3 px-3 py-2 rounded-md transition-all text-sm ${
+      className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-300 text-sm ${
         active
-          ? "bg-primary/10 text-primary font-medium"
-          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          ? "bg-primary text-primary-foreground shadow-md font-medium translate-x-1"
+          : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
       }`}
     >
       <div className="w-4 h-4">{icon}</div>
