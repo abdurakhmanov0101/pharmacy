@@ -1,18 +1,18 @@
 'use client';
+import { fetcher, swrFetcher } from '@/utils/fetcher';
 
 import useSWR from 'swr';
 import { useState } from 'react';
 import { Search, Eye, X, Receipt, RefreshCw } from 'lucide-react';
 import { useLanguage } from '@/i18n/LanguageContext';
 
-const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 export default function SalesClient({ initialSales }: { initialSales: any[] }) {
   const { t } = useLanguage();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSale, setSelectedSale] = useState<any>(null);
 
-  const { data: sales, isValidating: loading, mutate } = useSWR('http://localhost:3001/api/sales', fetcher, {
+  const { data: sales, isValidating: loading, mutate } = useSWR('http://localhost:3001/api/sales', swrFetcher, {
     fallbackData: initialSales,
     refreshInterval: 4000,
   });

@@ -1,13 +1,13 @@
 'use client';
+import { fetcher, swrFetcher } from '@/utils/fetcher';
 
 import useSWR from "swr";
 import { useState } from "react";
 import { Plus, Users, Search, AlertCircle, X } from "lucide-react";
 
-const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 export default function EmployeesClient() {
-  const { data: employees = [], error: fetchError, isValidating: loading, mutate: fetchEmployees } = useSWR("http://localhost:3001/api/employees", fetcher, {
+  const { data: employees = [], error: fetchError, isValidating: loading, mutate: fetchEmployees } = useSWR("http://localhost:3001/api/employees", swrFetcher, {
     refreshInterval: 5000
   });
 
@@ -30,7 +30,7 @@ export default function EmployeesClient() {
   const handleDelete = async (id: string) => {
     if (!confirm("Rostdan ham ushbu xodimni o'chirmoqchimisiz?")) return;
     try {
-      const res = await fetch(`http://localhost:3001/api/employees/${id}`, { method: 'DELETE' });
+      const res = await fetcher(`http://localhost:3001/api/employees/${id}`, { method: 'DELETE' });
       if (res.ok) {
         fetchEmployees();
       } else {
@@ -80,7 +80,7 @@ export default function EmployeesClient() {
       
       const method = isEditMode ? 'PUT' : 'POST';
 
-      const res = await fetch(url, {
+      const res = await fetcher(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

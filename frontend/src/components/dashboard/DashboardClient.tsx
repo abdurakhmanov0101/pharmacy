@@ -1,4 +1,5 @@
 'use client';
+import { fetcher, swrFetcher } from '@/utils/fetcher';
 
 import { Activity, DollarSign, Package, AlertCircle, TrendingUp, ShoppingCart, Bot, ChevronRight } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
@@ -16,13 +17,11 @@ import AnimatedNumber from "@/components/ui/AnimatedNumber";
 import useSWR from "swr";
 import { useState, useEffect } from "react";
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
-
 export default function DashboardClient({ stats: initialStats, error }: { stats: any; error: string | null }) {
   const { t } = useLanguage();
   const [mounted, setMounted] = useState(false);
 
-  const { data: stats } = useSWR("http://localhost:3001/api/dashboard", fetcher, {
+  const { data: stats } = useSWR("http://localhost:3001/api/dashboard", swrFetcher, {
     fallbackData: initialStats,
     refreshInterval: 5000, // SWR automatically pauses when window is out of focus
   });

@@ -1,13 +1,13 @@
 "use client";
+import { fetcher, swrFetcher } from '@/utils/fetcher';
 
 import useSWR from "swr";
 import { useState } from "react";
 import { Plus, Users, Search, Phone, Award, X, ShoppingBag } from "lucide-react";
 
-const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 export default function CustomersClient() {
-  const { data: customers = [], error, isValidating, mutate } = useSWR("http://localhost:3001/api/customers", fetcher, {
+  const { data: customers = [], error, isValidating, mutate } = useSWR("http://localhost:3001/api/customers", swrFetcher, {
     refreshInterval: 5000
   });
 
@@ -26,7 +26,7 @@ export default function CustomersClient() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const res = await fetch("http://localhost:3001/api/customers", {
+      const res = await fetcher("http://localhost:3001/api/customers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, phone: phone || undefined })

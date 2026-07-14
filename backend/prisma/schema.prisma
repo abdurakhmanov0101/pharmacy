@@ -15,6 +15,7 @@ model User {
   lastName  String
   roleId    String?
   branchId  String?
+  mustChangePassword Boolean @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -69,6 +70,8 @@ model Medicine {
   purchasePrice  Float?   @default(0)
   dosage         String?
   imageUrl       String?
+  mxikCode       String?
+  nds            Int      @default(12)
   isActive       Boolean  @default(true)
 
   category       Category?     @relation(fields: [categoryId], references: [id])
@@ -178,6 +181,10 @@ model Sale {
   totalAmount      Float
   paymentMethod    String   // e.g., "CASH", "CARD", "QR"
   status           String   @default("COMPLETED")
+
+  fiscalReceiptId  String?
+  fiscalUrl        String?
+  fiscalSign       String?
 
   branch           Branch   @relation(fields: [branchId], references: [id])
   user             User     @relation(fields: [userId], references: [id])

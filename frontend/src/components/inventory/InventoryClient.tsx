@@ -1,4 +1,5 @@
 "use client";
+import { fetcher, swrFetcher } from '@/utils/fetcher';
 
 import { useState, useEffect, useMemo } from "react";
 import { Package, Search, Plus, Store, X, ArrowDownLeft, CheckCircle2, Printer } from "lucide-react";
@@ -7,7 +8,6 @@ import BarcodePrinter from "./BarcodePrinter";
 
 import useSWR from "swr";
 
-const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 export function InventoryClient() {
   const { t } = useLanguage();
@@ -15,17 +15,32 @@ export function InventoryClient() {
   const [medicines, setMedicines] = useState<any[]>([]);
   const [search, setSearch] = useState("");
 
-  const { data: branches = [] } = useSWR("http://localhost:3001/api/branches", fetcher, {
+  const { data: branches = [] } = useSWR("http://localhost:3001/api/branches", swrFetcher, {
     onSuccess: (data) => {
       if (data.length > 0 && !selectedBranchId) setSelectedBranchId(data[0].id);
     }
   });
 
-  const { data: inventory = [], isValidating: loading, mutate: fetchInventory } = useSWR(
-    selectedBranchId ? `http://localhost:3001/api/inventory?branchId=${selectedBranchId}` : null,
-    fetcher,
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 50;
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const { data: inventoryData = { data: [] }, isValidating: loading, mutate: fetchInventory } = useSWR(
+    selectedBranchId ? `http://localhost:3001/api/inventory?branchId=${selectedBranchId}&page=${currentPage}&limit=${itemsPerPage}&search=${encodeURIComponent(debouncedSearch.trim())}` : null, swrFetcher,
     { refreshInterval: 5000 }
   );
+
+  const inventory = inventoryData?.data || [];
+  const totalPages = inventoryData?.meta?.totalPages || 1;
+  const totalItems = inventoryData?.meta?.total || 0;
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -76,7 +91,7 @@ export function InventoryClient() {
         reason: writeOffData.reason,
         branchId: selectedBranchId
       };
-      const res = await fetch("http://localhost:3001/api/inventory/write-off", {
+      const res = await fetcher("http://localhost:3001/api/inventory/write-off", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -97,7 +112,7 @@ export function InventoryClient() {
 
   const openKirimModal = async () => {
     try {
-      const res = await fetch("http://localhost:3001/api/medicines");
+      const res = await fetcher("http://localhost:3001/api/medicines");
       const meds = await res.json();
       setMedicines(meds);
     } catch (err) {}
@@ -161,7 +176,7 @@ export function InventoryClient() {
         barcode: formData.barcode || (isNewMed ? Math.floor(10000000 + Math.random() * 90000000).toString() : undefined)
       };
 
-      const res = await fetch("http://localhost:3001/api/inventory/receive", {
+      const res = await fetcher("http://localhost:3001/api/inventory/receive", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -178,26 +193,11 @@ export function InventoryClient() {
     }
   };
 
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 50;
-
-  const filteredInventory = useMemo(() => {
-    return inventory.filter((inv: any) => 
-      inv.medicine?.name?.toLowerCase().includes(search.toLowerCase())
-    );
-  }, [inventory, search]);
-
-  const totalPages = Math.ceil(filteredInventory.length / itemsPerPage) || 1;
-  const paginatedInventory = useMemo(() => {
-    return filteredInventory.slice(
-      (currentPage - 1) * itemsPerPage,
-      currentPage * itemsPerPage
-    );
-  }, [filteredInventory, currentPage, itemsPerPage]);
+  // Server-side pagination means inventory is already paginated
+  const paginatedInventory = inventory;
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearch(e.target.value);
-    setCurrentPage(1);
   };
 
   return (
@@ -361,7 +361,7 @@ export function InventoryClient() {
         {/* Inventory Pagination Bar */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-border">
           <span className="text-xs sm:text-sm text-muted-foreground font-medium">
-            Ko&apos;rsatildi: {paginatedInventory.length} ta (Jami {filteredInventory.length} ta dori)
+            Ko&apos;rsatildi: {paginatedInventory.length} ta (Jami {totalItems} ta dori)
           </span>
           <div className="flex items-center gap-2">
             <button

@@ -1,5 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ReportsService } from './reports.service';
+import { Roles } from '../common/decorators/roles.decorator';
 
 @Controller('api/reports')
 export class ReportsController {

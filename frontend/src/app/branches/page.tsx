@@ -1,4 +1,5 @@
 'use client';
+import { fetcher } from '@/utils/fetcher';
 
 import { useState, useEffect } from "react";
 import { MapPin, Plus, Phone, Clock, Building2, CheckCircle2, X, Trash2 } from "lucide-react";
@@ -19,11 +20,8 @@ export default function BranchesPage() {
   const fetchBranches = async () => {
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:3001/api/branches");
-      if (res.ok) {
-        const data = await res.json();
-        setBranches(data);
-      }
+      const data = await fetcher("http://localhost:3001/api/branches");
+      setBranches(Array.isArray(data) ? data : []);
     } catch (err) {}
     setLoading(false);
   };
@@ -38,7 +36,7 @@ export default function BranchesPage() {
 
     setSubmitting(true);
     try {
-      const res = await fetch("http://localhost:3001/api/branches", {
+      const res = await fetcher("http://localhost:3001/api/branches", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData)
@@ -59,7 +57,7 @@ export default function BranchesPage() {
   const handleDelete = async (id: string) => {
     if (!confirm("Bu filialni o'chirmoqchimisiz?")) return;
     try {
-      await fetch(`http://localhost:3001/api/branches/${id}`, { method: "DELETE" });
+      await fetcher(`http://localhost:3001/api/branches/${id}`, { method: "DELETE" });
       fetchBranches();
     } catch (err) {}
   };

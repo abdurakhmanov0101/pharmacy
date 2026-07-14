@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma.service';
 export class MedicinesService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(search?: string, limit: number = 300) {
+  async findAll(search?: string, page: number = 1, limit: number = 50) {
     const where: any = search
       ? {
           OR: [
@@ -14,18 +14,34 @@ export class MedicinesService {
             { barcode: { contains: search } },
           ],
         }
-      : undefined;
+      : {};
 
-    return this.prisma.medicine.findMany({
-      where,
-      take: Number(limit) || 300,
-      include: {
-        category: true,
-        manufacturer: true,
-        inventory: true,
-      },
-      orderBy: { name: 'asc' }
-    });
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      this.prisma.medicine.findMany({
+        where,
+        skip,
+        take: Number(limit),
+        include: {
+          category: true,
+          manufacturer: true,
+          inventory: true,
+        },
+        orderBy: { name: 'asc' }
+      }),
+      this.prisma.medicine.count({ where })
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages: Math.ceil(total / limit)
+      }
+    };
   }
 
   async create(data: any) {
@@ -54,37 +70,53 @@ export class MedicinesService {
     const branch = await this.prisma.branch.findFirst();
     const results: any[] = [];
 
+    const barcodes = formattedData.map(i => i.barcode).filter(Boolean) as string[];
+    const names = formattedData.map(i => i.name).filter(Boolean) as string[];
+
+    const existingMeds = await this.prisma.medicine.findMany({
+      where: {
+        OR: [
+          { barcode: { in: barcodes } },
+          { name: { in: names } }
+        ]
+      }
+    });
+
+    const medByBarcode = new Map(existingMeds.filter(m => m.barcode).map(m => [m.barcode, m]));
+    const medByName = new Map(existingMeds.map(m => [m.name.toLowerCase().trim(), m]));
+
+    const categories = await this.prisma.category.findMany();
+    const catByName = new Map(categories.map(c => [c.name.toLowerCase().trim(), c]));
+
     for (const item of formattedData) {
       if (!item.name) continue;
       try {
         let medicine = null;
 
-        if (item.barcode) {
-          medicine = await this.prisma.medicine.findUnique({ where: { barcode: item.barcode } });
+        if (item.barcode && medByBarcode.has(item.barcode)) {
+          medicine = medByBarcode.get(item.barcode);
         }
 
         if (!medicine && item.name) {
-          // Case insensitive search
-          const allMedicines = await this.prisma.medicine.findMany({
-            where: { name: { contains: item.name } }
-          });
-          medicine = allMedicines.find(
-            m => m.name.toLowerCase().trim() === item.name.toLowerCase().trim()
-          ) || null;
+          const searchName = item.name.toLowerCase().trim();
+          if (medByName.has(searchName)) {
+            medicine = medByName.get(searchName);
+          }
         }
 
         if (!medicine) {
           let categoryId = null;
           if (item.categoryName) {
-            let category = await this.prisma.category.findFirst({
-              where: { name: { contains: item.categoryName } }
-            });
-            if (!category) {
-              category = await this.prisma.category.create({
+            const catSearch = item.categoryName.toLowerCase().trim();
+            if (catByName.has(catSearch)) {
+              categoryId = catByName.get(catSearch)?.id;
+            } else {
+              const newCat = await this.prisma.category.create({
                 data: { name: item.categoryName }
               });
+              catByName.set(catSearch, newCat);
+              categoryId = newCat.id;
             }
-            categoryId = category.id;
           }
 
           medicine = await this.prisma.medicine.create({
@@ -97,6 +129,8 @@ export class MedicinesService {
               barcode: item.barcode || null,
             }
           });
+          medByBarcode.set(medicine.barcode || '', medicine);
+          medByName.set(medicine.name.toLowerCase().trim(), medicine);
           createdCount++;
         } else {
           let updatedData: any = {};

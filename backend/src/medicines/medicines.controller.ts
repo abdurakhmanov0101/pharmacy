@@ -7,8 +7,12 @@ export class MedicinesController {
   constructor(private readonly medicinesService: MedicinesService) {}
 
   @Get()
-  findAll(@Query('search') search?: string, @Query('limit') limit?: number) {
-    return this.medicinesService.findAll(search, limit);
+  findAll(
+    @Query('search') search?: string, 
+    @Query('page') page?: number,
+    @Query('limit') limit?: number
+  ) {
+    return this.medicinesService.findAll(search, page || 1, limit || 50);
   }
 
   @Post()

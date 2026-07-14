@@ -1,4 +1,5 @@
 'use client';
+import { fetcher } from '@/utils/fetcher';
 
 import { useState, useEffect } from "react";
 import { CreditCard, DollarSign, Search, CheckCircle2, AlertCircle, Plus, UserCheck, X, Calendar } from "lucide-react";
@@ -31,7 +32,7 @@ export default function PayrollClient() {
 
   const fetchPayrolls = async () => {
     try {
-      const res = await fetch("http://localhost:3001/api/payroll");
+      const res = await fetcher("http://localhost:3001/api/payroll");
       if (res.ok) {
         const data = await res.json();
         setPayrolls(data);
@@ -45,7 +46,7 @@ export default function PayrollClient() {
 
   const fetchEmployees = async () => {
     try {
-      const res = await fetch("http://localhost:3001/api/employees");
+      const res = await fetcher("http://localhost:3001/api/employees");
       if (res.ok) {
         const data = await res.json();
         setEmployees(data);
@@ -73,7 +74,7 @@ export default function PayrollClient() {
 
     setSubmitting(true);
     try {
-      const res = await fetch("http://localhost:3001/api/payroll/pay", {
+      const res = await fetcher("http://localhost:3001/api/payroll/pay", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -17,9 +17,19 @@ export class CustomersService {
   }
 
   async create(data: { name: string; phone?: string }) {
-    if (data.phone) {
+    let normalizedPhone = data.phone;
+    
+    if (normalizedPhone) {
+      // Remove all non-digit characters except +
+      normalizedPhone = normalizedPhone.replace(/[^\d+]/g, '');
+      
+      // Basic validation for Uzbekistan numbers
+      if (!/^\+998\d{9}$/.test(normalizedPhone)) {
+        throw new ConflictException('Telefon raqami formati noto\'g\'ri (Masalan: +998901234567)');
+      }
+
       const existing = await this.prisma.customer.findUnique({
-        where: { phone: data.phone }
+        where: { phone: normalizedPhone }
       });
       if (existing) {
         throw new ConflictException('Bu telefon raqami bilan mijoz allaqachon mavjud');
@@ -28,8 +38,8 @@ export class CustomersService {
     
     return this.prisma.customer.create({
       data: {
-        name: data.name,
-        phone: data.phone || null,
+        name: data.name.trim(),
+        phone: normalizedPhone || null,
         loyaltyPoints: 0
       }
     });

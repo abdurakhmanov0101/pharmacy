@@ -68,28 +68,28 @@ export class ReportsService {
       }),
     );
 
-    // Dead Stock calculation
-    const soldMedicinesAll = await this.prisma.saleItem.groupBy({
-      by: ['medicineId'],
-      where: { sale: { createdAt: { gte: start, lte: end } } }
-    });
-    const soldMedicineIds = soldMedicinesAll.map(s => s.medicineId);
-
-    const deadMedicinesData = await this.prisma.inventory.findMany({
-      where: {
-        quantity: { gt: 0 },
-        ...(soldMedicineIds.length > 0 ? { medicineId: { notIn: soldMedicineIds } } : {})
-      },
-      include: { medicine: { include: { category: true } } },
-      take: 15,
-      orderBy: { quantity: 'desc' }
-    });
+    // Optimized Dead Stock calculation using RAW SQL to prevent IN clause limits on millions of rows
+    const deadMedicinesData: any[] = await this.prisma.$queryRaw`
+      SELECT i.medicineId, m.name, c.name as categoryName, SUM(i.quantity) as stockQuantity
+      FROM Inventory i
+      JOIN Medicine m ON i.medicineId = m.id
+      LEFT JOIN Category c ON m.categoryId = c.id
+      WHERE i.quantity > 0 
+        AND NOT EXISTS (
+          SELECT 1 FROM SaleItem si 
+          JOIN Sale s ON si.saleId = s.id
+          WHERE si.medicineId = i.medicineId AND s.createdAt >= ${start} AND s.createdAt <= ${end}
+        )
+      GROUP BY i.medicineId, m.name, c.name
+      ORDER BY stockQuantity DESC
+      LIMIT 15
+    `;
 
     const deadMedicines = deadMedicinesData.map(inv => ({
       medicineId: inv.medicineId,
-      name: inv.medicine.name,
-      categoryName: inv.medicine.category?.name || 'Kategoriyasiz',
-      stockQuantity: inv.quantity,
+      name: inv.name,
+      categoryName: inv.categoryName || 'Kategoriyasiz',
+      stockQuantity: Number(inv.stockQuantity || 0),
     }));
 
     return {

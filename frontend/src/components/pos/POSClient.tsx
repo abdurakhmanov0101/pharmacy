@@ -1,12 +1,13 @@
 'use client';
+import { fetcher, swrFetcher } from '@/utils/fetcher';
 
 import useSWR from 'swr';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Search, ShoppingCart, Plus, Minus, Trash2, CreditCard, Banknote, X, ScanLine, Zap, CheckCircle2, Package, Camera, Wallet, Lock, LogOut, Clock } from 'lucide-react';
 import { useLanguage } from '@/i18n/LanguageContext';
 import MobileScanner from './MobileScanner';
+import ReceiptPrinter from "./ReceiptPrinter";
 
-const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 export default function POSClient({ initialMedicines }: { initialMedicines: any[] }) {
   const { t } = useLanguage();
@@ -25,6 +26,7 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
   const [scanNotification, setScanNotification] = useState<string | null>(null);
   const barcodeBufferRef = useRef<string>('');
   const lastKeyTimeRef = useRef<number>(0);
+  const [receiptData, setReceiptData] = useState<any>(null);
 
   // Session states
   const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
@@ -33,20 +35,18 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
   const [isClosingSession, setIsClosingSession] = useState(false);
 
   const { data: currentSession, mutate: mutateSession } = useSWR(
-    `http://localhost:3001/api/sessions/current-default`,
-    fetcher,
+    `http://localhost:3001/api/sessions/current-default`, swrFetcher,
     { refreshInterval: 5000 }
   );
 
   const { data: dailySales } = useSWR(
-    `http://localhost:3001/api/reports/daily`,
-    fetcher,
+    `http://localhost:3001/api/reports/daily`, swrFetcher,
     { refreshInterval: 10000 }
   );
 
   const { data: customersData = [] } = useSWR(
     `http://localhost:3001/api/customers`,
-    fetcher
+    swrFetcher
   );
 
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
@@ -72,13 +72,14 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
     } catch (e) {}
   };
 
-  const { data: medicines = initialMedicines, mutate: mutateMedicines } = useSWR(
+  const { data: medicinesData = { data: initialMedicines }, mutate: mutateMedicines } = useSWR(
     searchQuery.trim().length >= 2
       ? `http://localhost:3001/api/medicines?search=${encodeURIComponent(searchQuery.trim())}&limit=100`
-      : `http://localhost:3001/api/medicines?limit=300`,
-    fetcher,
-    { fallbackData: initialMedicines, refreshInterval: 5000 }
+      : `http://localhost:3001/api/medicines?limit=300`, swrFetcher,
+    { fallbackData: { data: initialMedicines }, refreshInterval: 5000 }
   );
+  
+  const medicines = Array.isArray(medicinesData) ? medicinesData : (medicinesData?.data || []);
 
   // Global Barcode Scanner Listener (Hardware scanner simulates rapid keyboard input ending in Enter)
   useEffect(() => {
@@ -118,7 +119,15 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
     }, 3500);
   };
 
+  const lastScanTimeRef = useRef<number>(0);
+
   const handleBarcodeScanned = async (barcode: string) => {
+    const now = Date.now();
+    if (now - lastScanTimeRef.current < 500) {
+      return; // Debounce
+    }
+    lastScanTimeRef.current = now;
+
     const found = medicines.find((m: any) => m.barcode === barcode || m.name.toLowerCase() === barcode.toLowerCase());
 
     if (!found) {
@@ -137,7 +146,7 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
           totalAmount: found.price,
           paymentMethod: 'CASH'
         };
-        const res = await fetch('http://localhost:3001/api/sales', {
+        const res = await fetcher('http://localhost:3001/api/sales', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -227,22 +236,23 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
         payload.splitPayments = { cash, card };
       }
 
-      const res = await fetch('http://localhost:3001/api/sales', {
+      const res = await fetcher('http://localhost:3001/api/sales', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
       if (res.ok) {
-        alert(t('pos.successMessage') || "✅ Sotuv muvaffaqiyatli amalga oshdi va dorilar ombordan chegirildi!");
-        setCart([]);
-        setCashAmount('');
-        setSelectedCustomer(null);
-        setCustomerSearch('');
-        setUsePoints(false);
-        setIsCheckoutModalOpen(false);
-        mutateMedicines();
-        mutateSession();
+        const resultData = await res.json();
+        setReceiptData({
+          cart: [...cart],
+          totalAmount,
+          saleId: resultData.id || '',
+          date: new Date(),
+          fiscalReceiptId: resultData.fiscalReceiptId,
+          fiscalUrl: resultData.fiscalUrl,
+          fiscalSign: resultData.fiscalSign
+        });
       } else {
         alert(t('pos.errorMessage') || "Sotuvda xatolik");
       }
@@ -252,9 +262,21 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
     }
   };
 
+  const handlePrintDone = () => {
+    setReceiptData(null);
+    setCart([]);
+    setCashAmount('');
+    setSelectedCustomer(null);
+    setCustomerSearch('');
+    setUsePoints(false);
+    setIsCheckoutModalOpen(false);
+    mutateMedicines();
+    mutateSession();
+  };
+
   const handleOpenSession = async () => {
     try {
-      const res = await fetch('http://localhost:3001/api/sessions/open-default', {
+      const res = await fetcher('http://localhost:3001/api/sessions/open-default', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ startingCash: Number(startingCash) || 0 }),
@@ -274,7 +296,7 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
   const handleCloseSession = async () => {
     if (!currentSession?.id) return;
     try {
-      const res = await fetch(`http://localhost:3001/api/sessions/close/${currentSession.id}`, {
+      const res = await fetcher(`http://localhost:3001/api/sessions/close/${currentSession.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ closingCash: Number(closingCash) || 0 }),
@@ -789,6 +811,19 @@ export default function POSClient({ initialMedicines }: { initialMedicines: any[
         </div>
       )}
 
+      {/* YASHIRIN CHEK PRINTERI */}
+      {receiptData && (
+        <ReceiptPrinter 
+          cart={receiptData.cart} 
+          totalAmount={receiptData.totalAmount}
+          saleId={receiptData.saleId}
+          date={receiptData.date}
+          fiscalReceiptId={receiptData.fiscalReceiptId}
+          fiscalUrl={receiptData.fiscalUrl}
+          fiscalSign={receiptData.fiscalSign}
+          onPrinted={handlePrintDone}
+        />
+      )}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 "use client";
+import { fetcher, swrFetcher } from '@/utils/fetcher';
 
 import { useState } from "react";
 import useSWR from "swr";
@@ -68,14 +69,14 @@ export default function ReportsClient({
   // SWR for write offs
   const { data: writeOffData, isLoading: isWriteOffsLoading } = useSWR(
     activeTab === "write_offs" ? "http://localhost:3001/api/reports/write-offs" : null,
-    (url) => fetch(url).then(r => r.json())
+    (url) => fetcher(url).then(r => r.json())
   );
 
   const fetchCustomData = async () => {
     if (!customStart || !customEnd) return;
     setIsLoadingCustom(true);
     try {
-      const res = await fetch(`http://localhost:3001/api/reports/custom?start=${customStart}&end=${customEnd}`);
+      const res = await fetcher(`http://localhost:3001/api/reports/custom?start=${customStart}&end=${customEnd}`);
       if (res.ok) {
         setCustomData(await res.json());
       }

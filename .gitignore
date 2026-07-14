@@ -7,3 +7,9 @@ build/
 *.db
 coverage/
 .DS_Store
+temp_credentials.txt
+hash-passwords.js
+test-parallel.js
+fix-swr.js
+fix-syntax.js
+refactor-fetch.js

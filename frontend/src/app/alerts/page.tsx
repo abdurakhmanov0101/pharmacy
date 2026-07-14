@@ -9,18 +9,18 @@ export default async function AlertsPage() {
   let expiring7 = null, expiring15 = null, expiring30 = null, lowStock = null, expired = null;
 
   try {
-    const [e7, e15, e30, ls, ex] = await Promise.all([
+    const [e7Res, e15Res, e30Res, lsRes, exRes] = await Promise.all([
       fetch("http://localhost:3001/api/inventory/expiring?days=7", { cache: "no-store" }),
       fetch("http://localhost:3001/api/inventory/expiring?days=15", { cache: "no-store" }),
       fetch("http://localhost:3001/api/inventory/expiring?days=30", { cache: "no-store" }),
       fetch("http://localhost:3001/api/inventory/low-stock?threshold=20", { cache: "no-store" }),
       fetch("http://localhost:3001/api/inventory/expired", { cache: "no-store" }),
     ]);
-    if (e7.ok) expiring7 = await e7.json();
-    if (e15.ok) expiring15 = await e15.json();
-    if (e30.ok) expiring30 = await e30.json();
-    if (ls.ok) lowStock = await ls.json();
-    if (ex.ok) expired = await ex.json();
+    if (e7Res.ok) expiring7 = await e7Res.json();
+    if (e15Res.ok) expiring15 = await e15Res.json();
+    if (e30Res.ok) expiring30 = await e30Res.json();
+    if (lsRes.ok) lowStock = await lsRes.json();
+    if (exRes.ok) expired = await exRes.json();
   } catch {}
 
   return (

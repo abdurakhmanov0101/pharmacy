@@ -1,9 +1,13 @@
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { FiscalService } from './fiscal.service';
 
 @Injectable()
 export class SalesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private fiscalService: FiscalService
+  ) {}
 
   async createSale(payload: any) {
     const { items, totalAmount, paymentMethod, customerId, usePoints } = payload;
@@ -141,39 +145,54 @@ export class SalesService {
 
       // 2. Deduct Inventory and Log Transactions
       for (const item of items) {
-        // Find existing inventory record
-        const inventory = await tx.inventory.findFirst({
+        let remainingToDeduct = item.quantity;
+        
+        // Find all inventory records for this medicine, ordered by expiryDate (FEFO)
+        const inventories = await tx.inventory.findMany({
           where: {
             medicineId: item.medicineId,
             branchId: branch.id,
-          }
+            quantity: { gt: 0 }
+          },
+          orderBy: [
+            { expiryDate: 'asc' }, // FEFO: oldest expiry first
+            { createdAt: 'asc' }
+          ]
         });
 
-        let currentInventoryId;
-
-        if (inventory) {
-          const updatedInventory = await tx.inventory.update({
-            where: { id: inventory.id },
-            data: { quantity: { decrement: item.quantity } }
-          });
-          
-          if (updatedInventory.quantity < 0) {
-            throw new HttpException(`Omborda yetarli qoldiq yo'q (Dori ID: ${item.medicineId})`, HttpStatus.BAD_REQUEST);
-          }
-          currentInventoryId = inventory.id;
-        } else {
-          throw new HttpException(`Sotilayotgan dori omborda mavjud emas (Dori ID: ${item.medicineId})`, HttpStatus.BAD_REQUEST);
+        if (inventories.length === 0) {
+           throw new HttpException(`Omborda dori topilmadi (Dori ID: ${item.medicineId})`, HttpStatus.BAD_REQUEST);
         }
 
-        // Create transaction log
-        await tx.inventoryTransaction.create({
-          data: {
-            inventoryId: currentInventoryId,
-            type: 'OUT',
-            quantity: item.quantity,
-            notes: `Sotuv orqali (ID: ${sale.id.slice(0,8)})`
+        for (const inv of inventories) {
+          if (remainingToDeduct <= 0) break;
+
+          const deductAmount = Math.min(inv.quantity, remainingToDeduct);
+          
+          const updatedInventory = await tx.inventory.update({
+            where: { id: inv.id },
+            data: { quantity: { decrement: deductAmount } }
+          });
+
+          if (updatedInventory.quantity < 0) {
+            throw new HttpException(`Manfiy qoldiq xatosi (Dori ID: ${item.medicineId})`, HttpStatus.BAD_REQUEST);
           }
-        });
+
+          await tx.inventoryTransaction.create({
+            data: {
+              inventoryId: inv.id,
+              type: 'OUT',
+              quantity: deductAmount,
+              notes: `Sotuv (FEFO, Sotuv ID: ${sale.id.slice(0,8)})`
+            }
+          });
+
+          remainingToDeduct -= deductAmount;
+        }
+
+        if (remainingToDeduct > 0) {
+          throw new HttpException(`Omborda yetarli qoldiq yo'q (Kamomad: ${remainingToDeduct} dona, Dori: ${item.medicineId})`, HttpStatus.BAD_REQUEST);
+        }
       }
 
       // Link saleId to loyalty transactions
@@ -184,7 +203,23 @@ export class SalesService {
         });
       }
 
-      return sale;
+      // 3. Send to Soliq OFD (Fiscal Integration)
+      const fiscalData = await this.fiscalService.sendReceipt(sale, items);
+      
+      let finalSale = sale;
+      if (fiscalData) {
+        finalSale = await tx.sale.update({
+          where: { id: sale.id },
+          data: {
+            fiscalReceiptId: fiscalData.fiscalReceiptId,
+            fiscalUrl: fiscalData.fiscalUrl,
+            fiscalSign: fiscalData.fiscalSign
+          },
+          include: { items: true }
+        });
+      }
+
+      return finalSale;
     });
   }
 

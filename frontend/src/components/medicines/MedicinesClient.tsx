@@ -1,4 +1,5 @@
 'use client';
+import { fetcher } from '@/utils/fetcher';
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Search, Plus, Edit, Trash2, X, Upload, Download } from 'lucide-react';
@@ -11,6 +12,8 @@ export default function MedicinesClient({ initialMedicines }: { initialMedicines
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(initialMedicines.length);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Modal states
@@ -24,24 +27,13 @@ export default function MedicinesClient({ initialMedicines }: { initialMedicines
     dosage: '',
     barcode: '',
     categoryName: '',
-    quantity: ''
+    quantity: '',
+    mxikCode: '',
+    nds: '12'
   });
 
-  const filteredMedicines = React.useMemo(() => {
-    return medicines.filter(med => 
-      med.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (med.genericName && med.genericName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (med.barcode && med.barcode.includes(searchQuery))
-    );
-  }, [medicines, searchQuery]);
-
-  const totalPages = Math.ceil(filteredMedicines.length / itemsPerPage) || 1;
-  const paginatedMedicines = React.useMemo(() => {
-    return filteredMedicines.slice(
-      (currentPage - 1) * itemsPerPage,
-      currentPage * itemsPerPage
-    );
-  }, [filteredMedicines, currentPage, itemsPerPage]);
+  // Server-side pagination means medicines is already paginated
+  const paginatedMedicines = medicines;
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
@@ -51,7 +43,7 @@ export default function MedicinesClient({ initialMedicines }: { initialMedicines
   const openAddModal = () => {
     setIsEditMode(false);
     setCurrentMedicineId(null);
-    setFormData({ name: '', genericName: '', price: '', dosage: '', barcode: '', categoryName: '', quantity: '' });
+    setFormData({ name: '', genericName: '', price: '', dosage: '', barcode: '', categoryName: '', quantity: '', mxikCode: '', nds: '12' });
     setIsModalOpen(true);
   };
 
@@ -65,7 +57,9 @@ export default function MedicinesClient({ initialMedicines }: { initialMedicines
       dosage: med.dosage || '',
       barcode: med.barcode || '',
       categoryName: med.category?.name || '',
-      quantity: med.inventory?.[0]?.quantity?.toString() || ''
+      quantity: med.inventory?.[0]?.quantity?.toString() || '',
+      mxikCode: med.mxikCode || '',
+      nds: (med.nds || 12).toString()
     });
     setIsModalOpen(true);
   };
@@ -78,15 +72,20 @@ export default function MedicinesClient({ initialMedicines }: { initialMedicines
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const fetchMedicines = async (query = '') => {
+  const fetchMedicines = async (query = '', page = 1) => {
     try {
-      const url = query
-        ? `http://localhost:3001/api/medicines?search=${encodeURIComponent(query)}&limit=100`
-        : `http://localhost:3001/api/medicines?limit=300`;
-      const res = await fetch(url);
+      const url = `http://localhost:3001/api/medicines?search=${encodeURIComponent(query)}&page=${page}&limit=${itemsPerPage}`;
+      const res = await fetcher(url);
       if (res.ok) {
-        const data = await res.json();
-        setMedicines(data);
+        const result = await res.json();
+        if (result.data && result.meta) {
+          setMedicines(result.data);
+          setTotalPages(result.meta.totalPages || 1);
+          setTotalItems(result.meta.total || 0);
+        } else {
+          // Fallback if old API
+          setMedicines(result);
+        }
       }
     } catch (err) {
       console.error('Failed to fetch medicines');
@@ -95,14 +94,10 @@ export default function MedicinesClient({ initialMedicines }: { initialMedicines
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (searchQuery.trim().length >= 2) {
-        fetchMedicines(searchQuery.trim());
-      } else if (searchQuery.trim().length === 0) {
-        fetchMedicines();
-      }
-    }, 250);
+      fetchMedicines(searchQuery.trim(), currentPage);
+    }, 300);
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery, currentPage]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -158,15 +153,29 @@ export default function MedicinesClient({ initialMedicines }: { initialMedicines
           return;
         }
 
-        const res = await fetch('http://localhost:3001/api/medicines/bulk', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
+        const chunkSize = 500;
+        let successCount = 0;
+        let hasError = false;
 
-        if (res.ok) {
+        for (let i = 0; i < payload.length; i += chunkSize) {
+          const chunk = payload.slice(i, i + chunkSize);
+          const res = await fetcher('http://localhost:3001/api/medicines/bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(chunk),
+          });
+
+          if (res.ok) {
+            successCount += chunk.length;
+          } else {
+            hasError = true;
+            console.error(`Chunk ${i} failed`);
+          }
+        }
+
+        if (successCount > 0) {
           await fetchMedicines();
-          alert(`${payload.length} ${t('medicines.alerts.importSuccess')}`);
+          alert(`${successCount} / ${payload.length} ${t('medicines.alerts.importSuccess')} ${hasError ? '(Ba\'zilari xato)' : ''}`);
         } else {
           alert(t('medicines.alerts.importError'));
         }
@@ -184,26 +193,28 @@ export default function MedicinesClient({ initialMedicines }: { initialMedicines
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const payload = {
-      name: formData.name,
-      genericName: formData.genericName,
-      price: Number(formData.price),
-      dosage: formData.dosage,
-      barcode: formData.barcode,
-      categoryName: formData.categoryName,
-      quantity: Number(formData.quantity) || 0
-    };
+      const payload = {
+        name: formData.name,
+        genericName: formData.genericName,
+        price: Number(formData.price),
+        dosage: formData.dosage,
+        barcode: formData.barcode,
+        categoryName: formData.categoryName,
+        quantity: formData.quantity ? Number(formData.quantity) : 0,
+        mxikCode: formData.mxikCode,
+        nds: Number(formData.nds)
+      };
 
     try {
       if (isEditMode) {
-        const res = await fetch(`http://localhost:3001/api/medicines/${currentMedicineId}`, {
+        const res = await fetcher(`http://localhost:3001/api/medicines/${currentMedicineId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
         if (!res.ok) throw new Error();
       } else {
-        const res = await fetch('http://localhost:3001/api/medicines/bulk', {
+        const res = await fetcher('http://localhost:3001/api/medicines/bulk', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify([payload]),
@@ -220,7 +231,7 @@ export default function MedicinesClient({ initialMedicines }: { initialMedicines
 
   const handleExportExcel = () => {
     // Prepare data for export
-    const dataToExport = filteredMedicines.map((med: any) => ({
+    const dataToExport = medicines.map((med: any) => ({
       [t('medicines.columns.name')]: med.name,
       [t('medicines.columns.genericName')]: med.genericName || '',
       [t('medicines.columns.category')]: med.category?.name || '',
@@ -271,7 +282,7 @@ export default function MedicinesClient({ initialMedicines }: { initialMedicines
   const handleDelete = async (id: string) => {
     if (!confirm(t('medicines.alerts.confirmDelete'))) return;
     try {
-      const res = await fetch(`http://localhost:3001/api/medicines/${id}`, {
+      const res = await fetcher(`http://localhost:3001/api/medicines/${id}`, {
         method: 'DELETE',
       });
       if (res.ok) {
@@ -291,7 +302,7 @@ export default function MedicinesClient({ initialMedicines }: { initialMedicines
           <h2 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-3">
             {t('medicines.title')}
             <span className="text-xs sm:text-sm px-3 py-1 rounded-full bg-primary/10 text-primary font-medium">
-              {filteredMedicines.length} ta
+              {totalItems} ta
             </span>
           </h2>
           <p className="text-xs sm:text-sm text-muted-foreground mt-1">{t('medicines.subtitle')}</p>
@@ -471,7 +482,7 @@ export default function MedicinesClient({ initialMedicines }: { initialMedicines
         {/* Pagination Controls */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-border bg-card">
           <span className="text-xs sm:text-sm text-muted-foreground font-medium">
-            Ko&apos;rsatildi: {paginatedMedicines.length} ta (Jami {filteredMedicines.length} ta dori)
+            Ko&apos;rsatildi: {paginatedMedicines.length} ta (Jami {totalItems} ta dori)
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -535,13 +546,21 @@ export default function MedicinesClient({ initialMedicines }: { initialMedicines
                     <label className="block text-sm font-medium mb-1.5">{t('medicines.form.barcode')}</label>
                     <input name="barcode" value={formData.barcode} onChange={handleInputChange} className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/50" />
                   </div>
-                  {!isEditMode && (
-                    <div>
-                      <label className="block text-sm font-medium mb-1.5 text-primary">Soni (Nechta kirim qilish)</label>
-                      <input type="number" name="quantity" value={formData.quantity || ''} onChange={handleInputChange} placeholder="0" className="w-full px-3 py-2 border border-primary/30 rounded-lg outline-none focus:ring-2 focus:ring-primary/50" />
-                    </div>
-                  )}
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5">QQS (NDS) %</label>
+                    <input name="nds" type="number" value={formData.nds} onChange={handleInputChange} className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/50" />
+                  </div>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1.5">Soliq Katalog Kodi (MXIK)</label>
+                  <input name="mxikCode" value={formData.mxikCode} onChange={handleInputChange} placeholder="06903001001000000" className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/50 font-mono text-sm" />
+                </div>
+                {!isEditMode && (
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5 text-primary">Soni (Nechta kirim qilish)</label>
+                    <input type="number" name="quantity" value={formData.quantity || ''} onChange={handleInputChange} placeholder="0" className="w-full px-3 py-2 border border-primary/30 rounded-lg outline-none focus:ring-2 focus:ring-primary/50" />
+                  </div>
+                )}
               </form>
             </div>
             <div className="p-5 border-t bg-muted/20 flex justify-end gap-3">

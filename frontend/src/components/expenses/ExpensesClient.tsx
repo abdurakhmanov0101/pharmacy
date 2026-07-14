@@ -1,4 +1,5 @@
 'use client';
+import { fetcher } from '@/utils/fetcher';
 
 import { useState, useEffect } from "react";
 import { DollarSign, TrendingUp, TrendingDown, Wallet, Plus, Trash2, Search, Calendar, Tag, X, AlertCircle } from "lucide-react";
@@ -30,8 +31,8 @@ export default function ExpensesClient() {
     setLoading(true);
     try {
       const [sumRes, expRes] = await Promise.all([
-        fetch("http://localhost:3001/api/expenses/summary"),
-        fetch("http://localhost:3001/api/expenses")
+        fetcher("http://localhost:3001/api/expenses/summary"),
+        fetcher("http://localhost:3001/api/expenses")
       ]);
       if (sumRes.ok) setSummary(await sumRes.json());
       if (expRes.ok) setExpenses(await expRes.json());
@@ -52,7 +53,7 @@ export default function ExpensesClient() {
 
     setSubmitting(true);
     try {
-      const res = await fetch("http://localhost:3001/api/expenses", {
+      const res = await fetcher("http://localhost:3001/api/expenses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -78,7 +79,7 @@ export default function ExpensesClient() {
   const handleDelete = async (id: string) => {
     if (!confirm("Chiqimni o'chirishni xohlaysizmi?")) return;
     try {
-      await fetch(`http://localhost:3001/api/expenses/${id}`, { method: "DELETE" });
+      await fetcher(`http://localhost:3001/api/expenses/${id}`, { method: "DELETE" });
       fetchAll();
     } catch (err) {}
   };

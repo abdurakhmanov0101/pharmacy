@@ -5,9 +5,10 @@ export default async function POSPage() {
   let error = null;
 
   try {
-    const res = await fetch('http://localhost:3001/api/medicines?limit=300', { cache: 'no-store' });
+    const res = await fetch('http://localhost:3001/api/medicines?page=1&limit=300', { cache: 'no-store' });
     if (!res.ok) throw new Error('Failed to fetch data');
-    medicines = await res.json();
+    const result = await res.json();
+    medicines = result.data ? result.data : result;
   } catch (err) {
     error = "Could not fetch medicines.";
   }
@@ -19,8 +20,7 @@ export default async function POSPage() {
           {error}
         </div>
       )}
-      
-      {!error && <POSClient initialMedicines={medicines} />}
+      <POSClient initialMedicines={medicines} />
     </div>
   );
 }

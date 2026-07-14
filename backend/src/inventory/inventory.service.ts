@@ -5,31 +5,49 @@ import { PrismaService } from '../prisma.service';
 export class InventoryService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(branchId?: string, limit: number = 300, search?: string) {
-    return this.prisma.inventory.findMany({
-      where: {
-        ...(branchId ? { branchId } : {}),
-        ...(search
-          ? {
-              medicine: {
-                OR: [
-                  { name: { contains: search } },
-                  { genericName: { contains: search } },
-                  { barcode: { contains: search } },
-                ],
-              },
-            }
-          : {}),
-      },
-      take: Number(limit) || 300,
-      include: {
-        medicine: {
-          include: { category: true, manufacturer: true },
+  async findAll(branchId?: string, page: number = 1, limit: number = 50, search?: string) {
+    const where: any = {
+      ...(branchId ? { branchId } : {}),
+      ...(search
+        ? {
+            medicine: {
+              OR: [
+                { name: { contains: search } },
+                { genericName: { contains: search } },
+                { barcode: { contains: search } },
+              ],
+            },
+          }
+        : {}),
+    };
+
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      this.prisma.inventory.findMany({
+        where,
+        skip,
+        take: Number(limit),
+        include: {
+          medicine: {
+            include: { category: true, manufacturer: true },
+          },
+          branch: true,
         },
-        branch: true,
-      },
-      orderBy: { medicine: { name: 'asc' } },
-    });
+        orderBy: { medicine: { name: 'asc' } },
+      }),
+      this.prisma.inventory.count({ where })
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages: Math.ceil(total / limit)
+      }
+    };
   }
 
   async getLowStock(threshold = 20, branchId?: string) {
@@ -209,11 +227,16 @@ export class InventoryService {
       throw new Error('Dori tanlanmagan yoki nomi kiritilmagan');
     }
 
-    let inv = await this.prisma.inventory.findFirst({
-      where: { medicineId, branchId: data.branchId },
-    });
-
     const parsedExpiry = data.expiryDate ? new Date(data.expiryDate) : null;
+
+    let inv = await this.prisma.inventory.findFirst({
+      where: { 
+        medicineId, 
+        branchId: data.branchId,
+        ...(data.batchNumber ? { batchNumber: data.batchNumber } : {}),
+        ...(parsedExpiry ? { expiryDate: parsedExpiry } : {})
+      },
+    });
 
     if (inv) {
       inv = await this.prisma.inventory.update({

@@ -6,7 +6,7 @@ export default async function Dashboard() {
 
   try {
     const res = await fetch('http://localhost:3001/api/dashboard', { cache: 'no-store' });
-    if (!res.ok) throw new Error('Failed to fetch data');
+    if (!res.ok) throw new Error('Failed');
     stats = await res.json();
   } catch (err) {
     error = "Could not connect to the backend server.";
