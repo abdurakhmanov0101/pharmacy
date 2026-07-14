@@ -2,8 +2,17 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Lock, User, AlertCircle } from 'lucide-react';
+import { Lock, User, AlertCircle, Shield, UserCheck, ShoppingCart, Pill } from 'lucide-react';
 import { fetcher } from '@/utils/fetcher';
+import { API_BASE } from '@/utils/config';
+
+const DEMO_ACCOUNTS = [
+  { email: 'admin@apteka.uz', password: 'Admin1234', role: 'ADMIN', name: 'Admin Rahimov', icon: Shield, color: '#ef4444' },
+  { email: 'manager@apteka.uz', password: 'Manager123', role: 'MANAGER', name: 'Sardor Karimov', icon: UserCheck, color: '#f59e0b' },
+  { email: 'sotuvchi1@apteka.uz', password: 'Sotuvchi1', role: 'SOTUVCHI', name: 'Aziz Toshmatov', icon: ShoppingCart, color: '#22c55e' },
+  { email: 'sotuvchi2@apteka.uz', password: 'Sotuvchi2', role: 'SOTUVCHI', name: 'Malika Yusupova', icon: ShoppingCart, color: '#06b6d4' },
+  { email: 'farmatsevt@apteka.uz', password: 'Farma123', role: 'FARMATSEVT', name: 'Dilnoza Nazarova', icon: Pill, color: '#8b5cf6' },
+];
 
 export default function LoginClient() {
   const router = useRouter();
@@ -12,7 +21,6 @@ export default function LoginClient() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   
-  // For forcing password change
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -23,7 +31,7 @@ export default function LoginClient() {
     setLoading(true);
 
     try {
-      const response = await fetcher('http://localhost:3001/api/auth/login', {
+      const response = await fetch(`${API_BASE}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
@@ -50,6 +58,11 @@ export default function LoginClient() {
     }
   };
 
+  const handleQuickLogin = (account: typeof DEMO_ACCOUNTS[0]) => {
+    setEmail(account.email);
+    setPassword(account.password);
+  };
+
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -60,18 +73,17 @@ export default function LoginClient() {
     }
 
     if (newPassword.length < 6) {
-      setError('Parol kamida 6 ta belgi bo\'lishi kerak');
+      setError("Parol kamida 6 ta belgi bo'lishi kerak");
       return;
     }
 
     setLoading(true);
     try {
-      await fetcher('http://localhost:3001/api/auth/change-password', {
+      await fetcher(`${API_BASE}/api/auth/change-password`, {
         method: 'PUT',
         body: JSON.stringify({ newPassword })
       });
       
-      // Update user in local storage
       const userStr = localStorage.getItem('user');
       if (userStr) {
         const user = JSON.parse(userStr);
@@ -88,52 +100,94 @@ export default function LoginClient() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="w-full max-w-md bg-card border border-border rounded-2xl shadow-xl overflow-hidden">
-        <div className="p-8">
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-foreground">Xush Kelibsiz!</h1>
-            <p className="text-muted-foreground mt-2">
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)' }}>
+      <div className="w-full max-w-5xl flex flex-col lg:flex-row gap-6">
+        
+        {/* Left — Demo Accounts */}
+        <div className="flex-1 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 shadow-2xl">
+          <h2 className="text-lg font-bold text-white mb-1">🔑 Tezkor Kirish</h2>
+          <p className="text-white/50 text-sm mb-4">Rolni tanlang va tizimga kiring</p>
+          
+          <div className="space-y-2.5">
+            {DEMO_ACCOUNTS.map((acc) => {
+              const Icon = acc.icon;
+              const isSelected = email === acc.email;
+              return (
+                <button
+                  key={acc.email}
+                  onClick={() => handleQuickLogin(acc)}
+                  className="w-full flex items-center gap-3 p-3.5 rounded-xl text-left transition-all duration-200"
+                  style={{
+                    background: isSelected ? `${acc.color}20` : 'rgba(255,255,255,0.03)',
+                    border: isSelected ? `2px solid ${acc.color}` : '2px solid transparent',
+                  }}
+                >
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${acc.color}25` }}>
+                    <Icon className="w-5 h-5" style={{ color: acc.color }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white font-semibold text-sm">{acc.name}</p>
+                    <p className="text-white/40 text-xs">{acc.role} · {acc.email}</p>
+                  </div>
+                  {isSelected && (
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style={{ background: acc.color }}>
+                      <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Right — Login Form */}
+        <div className="w-full lg:w-[380px] bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 shadow-2xl flex flex-col justify-center">
+          <div className="text-center mb-6">
+            <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/25">
+              <span className="text-2xl">💊</span>
+            </div>
+            <h1 className="text-xl font-bold text-white">AptekaOS</h1>
+            <p className="text-white/50 text-sm mt-1">
               {mustChangePassword 
-                ? 'Xavfsizlik uchun parolni o\'zgartirishingiz shart'
-                : 'Tizimga kirish uchun ma\'lumotlaringizni kiriting'}
+                ? "Xavfsizlik uchun parolni o'zgartiring"
+                : 'Tizimga kirish'}
             </p>
           </div>
 
           {error && (
-            <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-xl flex items-center gap-3 text-destructive">
-              <AlertCircle className="h-5 w-5 shrink-0" />
-              <p className="text-sm font-medium">{error}</p>
+            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-2 text-red-400">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <p className="text-sm">{error}</p>
             </div>
           )}
 
           {!mustChangePassword ? (
-            <form onSubmit={handleLogin} className="space-y-5">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Email</label>
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label className="text-xs font-medium text-white/70 mb-1 block">Email</label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30" />
                   <input
                     type="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-muted border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-                    placeholder="admin@pharmauz.com"
+                    className="w-full pl-9 pr-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/20 outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/25 text-sm transition-all"
+                    placeholder="email@apteka.uz"
                   />
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Parol</label>
+              <div>
+                <label className="text-xs font-medium text-white/70 mb-1 block">Parol</label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30" />
                   <input
                     type="password"
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-muted border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+                    className="w-full pl-9 pr-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/20 outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/25 text-sm transition-all"
                     placeholder="••••••••"
                   />
                 </div>
@@ -142,38 +196,38 @@ export default function LoginClient() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 transition-all disabled:opacity-70 disabled:cursor-not-allowed mt-2 shadow-lg shadow-primary/20"
+                className="w-full py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-semibold rounded-xl hover:from-emerald-600 hover:to-teal-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-emerald-500/20 text-sm"
               >
-                {loading ? 'Tekshirilmoqda...' : 'Tizimga Kirish'}
+                {loading ? 'Tekshirilmoqda...' : 'Tizimga Kirish →'}
               </button>
             </form>
           ) : (
-            <form onSubmit={handleChangePassword} className="space-y-5">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Yangi Parol</label>
+            <form onSubmit={handleChangePassword} className="space-y-4">
+              <div>
+                <label className="text-xs font-medium text-white/70 mb-1 block">Yangi Parol</label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30" />
                   <input
                     type="password"
                     required
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-muted border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-                    placeholder="Yangi parol (min. 6ta)"
+                    className="w-full pl-9 pr-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/20 outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/25 text-sm transition-all"
+                    placeholder="Kamida 6 ta belgi"
                   />
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Parolni Tasdiqlang</label>
+              <div>
+                <label className="text-xs font-medium text-white/70 mb-1 block">Parolni Tasdiqlang</label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30" />
                   <input
                     type="password"
                     required
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-muted border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+                    className="w-full pl-9 pr-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/20 outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/25 text-sm transition-all"
                     placeholder="Parolni qayta kiriting"
                   />
                 </div>
@@ -182,9 +236,9 @@ export default function LoginClient() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 bg-primary text-primary-foreground font-semibold rounded-xl hover:bg-primary/90 transition-all disabled:opacity-70 disabled:cursor-not-allowed mt-2 shadow-lg shadow-primary/20"
+                className="w-full py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-semibold rounded-xl hover:from-emerald-600 hover:to-teal-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-emerald-500/20 text-sm"
               >
-                {loading ? 'Saqlanmoqda...' : 'Saqlash va Davom etish'}
+                {loading ? 'Saqlanmoqda...' : 'Saqlash va Davom etish →'}
               </button>
             </form>
           )}
